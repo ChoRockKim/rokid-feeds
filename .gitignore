@@ -1,0 +1,17 @@
+# 비밀 정보
+.env
+local.properties
+*.jks
+*.keystore
+
+# 빌드 산출물
+build/
+.gradle/
+.kotlin/
+*.apk
+*.aab
+
+# IDE
+.idea/
+*.iml
+.DS_Store
