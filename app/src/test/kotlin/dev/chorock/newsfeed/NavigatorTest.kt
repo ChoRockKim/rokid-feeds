@@ -146,3 +146,22 @@ class NavigatorTest {
         }
     }
 }
+
+class WrapIndexTest {
+    @Test fun `양끝에서 순환한다`() {
+        assertEquals(1, dev.chorock.newsfeed.nav.wrapIndex(0, 1, 2))
+        assertEquals(0, dev.chorock.newsfeed.nav.wrapIndex(1, 1, 2))
+        assertEquals(1, dev.chorock.newsfeed.nav.wrapIndex(0, -1, 2))
+        assertEquals(4, dev.chorock.newsfeed.nav.wrapIndex(0, -1, 5))
+    }
+
+    @Test fun `큰 이동량도 범위 안으로 돌린다`() {
+        assertEquals(2, dev.chorock.newsfeed.nav.wrapIndex(1, 11, 5))
+        assertEquals(3, dev.chorock.newsfeed.nav.wrapIndex(1, -13, 5))
+    }
+
+    @Test fun `개수가 0 이하면 그대로 둔다`() {
+        assertEquals(3, dev.chorock.newsfeed.nav.wrapIndex(3, 1, 0))
+        assertEquals(0, dev.chorock.newsfeed.nav.wrapIndex(0, -1, -2))
+    }
+}

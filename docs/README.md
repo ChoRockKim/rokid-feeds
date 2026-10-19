@@ -7,31 +7,55 @@ Rokid 글래스 단색 HUD 규격(480×352, 녹색)으로 만들었고 폰 에�
 |---|---|---|---|
 | ![feed](screenshots/feed.png) | ![detail](screenshots/detail.png) | ![detail2](screenshots/detail-page2.png) | ![error](screenshots/error.png) |
 
-| 시작 시 Wi-Fi 연결 화면 | 시스템 확인 창 |
-|---|---|
-| ![wifi](screenshots/wifi.png) | ![dialog](screenshots/wifi-system-dialog.png) |
+| Wi-Fi 홈 | Wi-Fi 목록 | 직접 입력 폼 |
+|---|---|---|
+| ![home](screenshots/wifi.png) | ![picker](screenshots/wifi-picker.png) | ![form](screenshots/wifi-form-filled.png) |
 
-## 시작 시 Wi-Fi 연결
+| 위치 권한 창(시스템) | "Wi-Fi 연결"의 시스템 확인 창 | 시스템 Wi-Fi 설정(보험) |
+|---|---|---|
+| ![perm](screenshots/wifi-permission.png) | ![dialog](screenshots/wifi-system-dialog.png) | ![settings](screenshots/wifi-settings.png) |
 
-글래스는 입력이 제한적이라 비밀번호를 직접 칠 수 없다. 그래서 **연결할 Wi-Fi를 빌드 시점에 정해 두고**, 앱을 켰을 때 인터넷이 없으면 Wi-Fi 연결 화면을 먼저 보여 준다. Enter(탭)를 누르면 그 네트워크에 연결을 요청한다.
+## 시작 시 Wi-Fi
 
-```bash
-cp local.properties.example local.properties   # wifi.ssid, wifi.password를 채운다 (커밋 금지)
-./gradlew assembleDebug
+앱을 켰을 때 인터넷이 없으면 Wi-Fi 화면이 먼저 뜬다. **OS 설정 화면이 아니라 이 앱의 HUD 화면**이고, 전부 ←/→/Enter/Back만으로 조작한다.
+
+```
+홈 ──[Wi-Fi 선택]──▶ 목록 ──[보안 네트워크 / 직접 입력]──▶ 폼(비밀번호)
+ │                    └─ [시스템 Wi-Fi 설정 열기]  (보험)
+ └─[Wi-Fi 연결]──▶ 저장된(또는 빌드 시) 네트워크에 바로 연결
+Back: 폼 → 목록 → 홈 → 앱 종료
 ```
 
-- 개방형 네트워크는 `wifi.password`를 비워 두면 된다. 비밀번호가 있는 네트워크는 WPA2(`setWpa2Passphrase`)로 요청한다. WPA3·기업망(802.1X)은 다루지 않는다.
-- **완전 자동은 아니다.** 첫 연결 때 안드로이드 시스템이 "Connect to device / Cancel · Connect" 확인 창을 띄우며 앱이 이를 건너뛸 수 없다. 사용자가 Connect를 눌러야 한다.
-- 연결된 네트워크는 **이 앱 프로세스에만** 적용된다(시스템 전체 Wi-Fi 설정은 바뀌지 않는다). 앱을 종료하면 해제된다.
-- **비밀번호는 APK(`BuildConfig`)에 들어간다.** APK를 받은 사람은 꺼낼 수 있으므로 공유·배포용 빌드에는 개인 Wi-Fi를 넣지 않는다.
-- Wi-Fi 무선이 꺼져 있으면 "Wi-Fi가 꺼져 있습니다. 먼저 켜 주세요"를 보여 준다(Android 10 이후 앱은 Wi-Fi를 직접 켤 수 없다).
-- 받기에 실패했는데 연결도 끊겨 있으면 오류 화면 대신 이 화면으로 돌아온다.
-- 화면 맨 아래에 "Hi Rokid 앱에서도 안경 Wi-Fi를 연결할 수 있습니다"를 함께 보여 준다. 이 문구는 Rokid Nexus 문서(`[2차]`, 제3자)에 근거하며 글래스에서 직접 확인한 사실은 아니다.
+| 화면 | 내용 |
+|---|---|
+| **홈** | 지금 연결할 네트워크 이름과 버튼 2개. "Wi-Fi 연결"은 저장된 네트워크(없으면 빌드 시 `local.properties`의 값)에 바로 연결을 요청한다. "Wi-Fi 선택"은 목록으로 간다. |
+| **목록** | 주변 네트워크를 신호가 강한 순으로 보여 준다(신호 막대 + 보안 종류). 개방형은 Enter로 바로 연결하고, WPA2/WPA3는 비밀번호 폼으로 간다. 기업망(802.1X)·WEP는 "지원하지 않는 보안 방식" 안내만 나온다. 맨 아래에 "직접 입력(숨김 네트워크)", "다시 검색", "시스템 Wi-Fi 설정 열기"가 있다. |
+| **폼** | 비밀번호 입력칸(직접 입력이면 SSID·보안 종류도), "비밀번호 표시" 토글, 연결, 취소. 입력 규칙(WPA2 8~63자 또는 64자리 16진수, WPA3 1~128자)을 어기면 연결하지 않고 문구를 보여 준다. |
+
+**비밀번호 입력**: 입력칸은 일반 안드로이드 텍스트 입력이라 폰의 키보드 앱이 보내는 글자를 그대로 받는다(Rokid Nexus의 "Keyboard & remote"와 같은 방식을 가정). ←/→/Enter는 입력칸에 먹히지 않도록 가로채서 항목 이동에 쓴다.
+
+**저장**: 사용자가 직접 골라 연결에 **성공한** 네트워크만 저장한다. Android Keystore의 AES-256-GCM 키로 암호화해 앱 전용 저장소(`shared_prefs/wifi_saved.xml`)에 두며 SSID와 비밀번호는 평문으로 보이지 않는다(확인함). 백업은 꺼져 있고 로그·화면에 비밀번호를 내보내지 않는다. 저장된 값이 빌드 시 값보다 우선한다.
+
+```bash
+cp local.properties.example local.properties   # 선택: 저장된 네트워크가 없을 때 쓸 기본 Wi-Fi (커밋 금지)
+```
+
+**권한 — 안드로이드 규칙 때문에 위치 권한이 필요하다**
+- `WifiManager.startScan()`/`getScanResults()`는 안드로이드 13+에서도 `ACCESS_FINE_LOCATION`이 필요하다. `NEARBY_WIFI_DEVICES`로는 대체되지 않는다(공식 문서 + 에뮬레이터 API 36에서 `SecurityException`으로 확인). 그래서 목록을 보려면 위치 권한을 허용해야 하고(정밀·대략을 함께 요청), 기기의 위치 서비스도 켜져 있어야 한다. 앱은 위치 정보를 쓰지 않는다.
+- 이 권한 창은 **시스템 UI**(정밀/대략 + 3개 버튼, 터치 중심)라서 글래스에서 ←/→/Enter로 누를 수 있는지는 확인하지 못했다. 막히는 경우를 위해 목록 맨 아래에 "시스템 Wi-Fi 설정 열기"를 남겨 두었다. 목록을 못 보더라도 "직접 입력"은 권한 없이 쓸 수 있다.
+- 연결 자체는 `WifiNetworkSpecifier`(위치 권한 불필요)이며, 연결된 네트워크는 **이 앱 프로세스에만** 적용된다. 첫 연결 때 시스템이 "Connect to device / Cancel · Connect" 확인 창을 띄우며 앱이 건너뛸 수 없다. 완전 자동은 아니다.
+
+**그 밖의 동작**
+- Wi-Fi 화면에 있는 동안 2초마다 인터넷 연결을 확인해, 시스템 설정이나 Hi Rokid 앱 등 어디서든 연결이 생기면 자동으로 피드를 불러온다.
+- Wi-Fi 무선이 꺼져 있으면 안내 문구를 보여 준다(안드로이드 10+ 앱은 Wi-Fi를 직접 켤 수 없다).
+- 화면 맨 아래의 "Hi Rokid 앱에서도 안경 Wi-Fi를 연결할 수 있습니다"는 Rokid Nexus 문서(`[2차]`, 제3자)에 근거하며 글래스에서 확인한 사실은 아니다.
+- 폰의 Wi-Fi·모바일 데이터를 글래스가 그대로 쓸 수 있는지는 `rokid/docs/05-nexus-feature-control-patterns.md` 7장에 조사했다. 독립 APK가 폰 연결을 자동으로 쓰는 근거는 찾지 못했다.
+- **WPA3**: 비밀번호가 필요한 WPA3는 `setWpa3Passphrase`로 요청하지만 실제 WPA3 AP로 시험하지 못했다.
 
 ## 실행
 
 ```bash
-./gradlew testDebugUnitTest                 # 단위 테스트 (73개)
+./gradlew testDebugUnitTest                 # 단위 테스트 (106개)
 ./gradlew assembleDebug                     # app/build/outputs/apk/debug/app-debug.apk
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell am start -n dev.chorock.newsfeed/.MainActivity
@@ -47,6 +71,8 @@ adb shell am start -n dev.chorock.newsfeed/.MainActivity
 | Enter | 상세 열기 (오류 화면에서는 다시 시도) | 다음 쪽 (마지막 쪽에서는 멈춤) |
 | Back | 앱 종료 | 목록으로 복귀 (선택 위치 유지) |
 | ↑ / ↓ | **처리하지 않음** | **처리하지 않음** |
+
+Wi-Fi 화면(홈·목록·폼)에서도 ←/→는 항목 사이를 순환하고 Enter는 선택한 항목을 누르며 Back은 한 화면씩 돌아간다. 폼의 입력칸에는 ←/→/Enter가 먹히지 않고 항목 이동에 쓰인다.
 
 터치로 항목을 눌러도 열린다(에뮬레이터 확인용). 내비게이션 전체는 Android 없는 순수 상태머신(`nav/Navigator.kt`)이며 "어떤 키 순서로도 Back을 두 번 이내로 누르면 종료에 닿음"을 테스트로 검증한다.
 
@@ -76,16 +102,23 @@ app/src/main/kotlin/dev/chorock/newsfeed/
 │   ├── RssParser.kt             # <item> → Article (CDATA·엔티티·pubDate/dc:date)
 │   └── Models.kt                # FeedSource, Article, Feed
 ├── nav/
-│   └── Navigator.kt             # 순수 내비게이션 상태머신 (NavKey/NavState/Reduction)
+│   ├── Navigator.kt             # 뉴스 내비게이션 상태머신 (NavKey/NavState/Reduction), wrapIndex
+│   ├── WifiFlow.kt              # Wi-Fi 화면 묶음(홈/목록/폼) 내비게이션 상태머신 (순수)
+│   └── WifiItems.kt             # 목록·폼의 줄 구성, 입력 검증 (순수)
 ├── net/
-│   ├── WifiConfig.kt            # local.properties → BuildConfig의 SSID/비밀번호
-│   └── WifiConnector.kt         # 온라인 확인, WifiNetworkSpecifier로 연결 요청
+│   ├── WifiConfig.kt            # 연결할 네트워크(SSID/비밀번호/보안), 빌드 시 기본값
+│   ├── WifiConnector.kt         # 온라인 확인, WifiNetworkSpecifier로 연결 요청(개방/OWE/WPA2/WPA3)
+│   ├── WifiScanner.kt           # 주변 목록 스캔(위치 권한·위치 서비스 확인, 예외는 결과로)
+│   ├── WifiSecurity.kt          # capabilities → 보안 종류, 비밀번호 규칙 검사 (순수)
+│   ├── WifiNetworks.kt          # 스캔 결과 정리: 중복·숨김 제거, 신호순 정렬 (순수)
+│   ├── WifiStore.kt             # Keystore AES-GCM으로 암호화해 저장
+│   └── WifiSettings.kt          # 시스템 Wi-Fi 설정 화면 열기(보험)
 ├── ui/
-│   ├── WifiScreen.kt            # 시작 시 Wi-Fi 연결 화면
 │   ├── GlassFrame.kt            # 480×352 캔버스, 작은 화면에서는 비율 유지 축소
 │   ├── Theme.kt                 # 글래스 색·글꼴 토큰
 │   ├── FeedScreen.kt, DetailScreen.kt, LoadState.kt
-│   └── Keys.kt, NavStateSaver.kt  # 키 → NavKey 매핑(한 곳), 상태 보존
+│   ├── Keys.kt, NavStateSaver.kt  # 키 → NavKey 매핑(한 곳), 상태 보존
+│   └── wifi/                    # WifiFlowScreen(호스트), WifiHomePage/PickerPage/FormPage, WifiWidgets(입력칸)
 └── util/ Pager.kt, HtmlText.kt, TimeAgo.kt
 ```
 
@@ -122,9 +155,25 @@ app/src/main/kotlin/dev/chorock/newsfeed/
 - **Wi-Fi 연결** (에뮬레이터, 개방형 `AndroidWifi`): 모바일 데이터를 끄고 저장된 연결을 지운 상태로 시작 → Wi-Fi 연결 화면 → Enter → 시스템 확인 창 → Connect → 앱이 `AndroidWifi`에 연결(요청 패키지 `dev.chorock.newsfeed`)되고 피드 30개 자동 로딩
 - 확인 창에서 Cancel → "AndroidWifi에 연결하지 못했습니다" 표시, 버튼은 다시 사용 가능
 - Wi-Fi 무선을 끄고 Enter → "Wi-Fi가 꺼져 있습니다. 먼저 켜 주세요" 표시
+- **Wi-Fi 화면(직접 만든 HUD UI)** — 전용 에뮬레이터 `NewsFeed_Test`(API 36, 오프라인으로 시작), `adb -s emulator-5556`만 사용:
+  - 홈에 버튼 2개, ←/→로 선택 이동
+  - 목록: 권한이 없으면 맨 위에 "목록을 보려면 위치 권한 허용"과 직접 입력·다시 검색·시스템 설정 줄. Enter → 시스템 위치 권한 창 → "앱 사용 중 허용" → `AndroidWifi`(신호 막대 4칸, 개방)가 목록에 나옴
+  - 목록에서 `AndroidWifi` 선택 → 시스템 확인 창 → Connect → 피드 30개 로딩. 저장 파일에 SSID·비밀번호가 평문으로 없음(암호화된 `blob`만)
+  - 앱을 끄고 오프라인으로 다시 시작 → 홈의 "Wi-Fi 연결"이 저장된 네트워크로 연결 → 피드 로딩
+  - 직접 입력 폼: `adb input text`로 SSID와 비밀번호 칸에 글자가 들어감(폰 키보드가 보내는 글자를 받는 경로의 대용), 표시 토글로 평문 확인, 5자는 "WPA2 비밀번호는 8자 이상이어야 합니다"로 거부, 10자는 연결을 시도해 시스템 "Searching for device…" 후 앱이 죽지 않고 "AndroidWifi에 연결하지 못했습니다"를 보여 주고 입력값은 유지
+- **버그 두 건을 실행해서 찾아 고쳤다**
+  - `CHANGE_WIFI_STATE` 권한 누락으로 스캔 요청이 `SecurityException`을 던져 앱이 죽었다 → 권한을 선언하고 `WifiScanner`가 스캔 중 모든 예외를 결과로 바꾸게 했다
+  - 목록이 비어 있었다: 로그가 "UID has no location permission". `NEARBY_WIFI_DEVICES`로 충분하다고 가정했으나 안드로이드 13+에서도 `startScan`/`getScanResults`는 `ACCESS_FINE_LOCATION`이 필요하다 → 위치 권한 방식으로 바꿨다
 - 상세·내비게이션 리팩터링 뒤에 같은 Wi-Fi 흐름을 다시 확인: 오프라인 시작 → 연결 화면(안내 문구 포함) → Enter → 시스템 창 → Connect → 피드 30개 로딩
 
 **미검증 / 알려진 한계**
+- **글래스에서 위치 권한 창을 누를 수 있는지**(시스템 UI, 터치 중심)는 확인하지 못했다. 이 창이 막히면 목록은 못 보고 "직접 입력"과 "시스템 Wi-Fi 설정 열기"만 쓸 수 있다
+- 시스템 Wi-Fi 설정·시스템 연결 확인 창도 글래스에서 ←/→/Enter만으로 조작되는지, 글래스 OS(YodaOS-Sprite)에 설정 앱이 있는지는 확인하지 못했다
+- **보안 네트워크(WPA2/WPA3)로 실제로 연결되는지**: 에뮬레이터에는 개방형 AP만 있어 확인하지 못했다. 비밀번호 입력·검증·거부 경로와 요청 생성까지만 확인했다. 목록에 보안 네트워크가 나올 때(잠금 표시, 폼으로 이동)의 화면도 직접 보지 못했다(`securityOf`와 항목 구성은 단위 테스트)
+- 폰 키보드가 글래스 입력칸에 글자를 보내는 실제 경로(Nexus의 "Keyboard & remote" 등)는 시험하지 못했다. `adb input text`는 같은 입력칸이 글자를 받는다는 것만 보여 준다
+- 위치 서비스가 꺼진 기기에서의 안내 문구("기기의 위치 서비스를 켜야 …")와 권한을 거부했을 때의 화면은 직접 보지 못했다
+- 소프트 키보드가 있는 기기(에뮬레이터)에서는 키보드가 폼 아래쪽(오류 문구·취소 줄)을 가린다. 글래스에 소프트 키보드가 없다는 가정이다
+- 비밀번호 칸의 글자 가림(`PasswordVisualTransformation`)과 자동 완성 비활성은 설정만 했다(접근성 덤프에서 `password=true` 확인)
 - 쪽 나누기 상수(220/320/70)는 한국어 샘플 30건과 에뮬레이터 프레임(480×352dp)에서만 맞춘 값이다. 실제 글래스의 글꼴·밀도에서 줄 수가 달라질 수 있다. 문단 구분(`\n\n`)이 많은 글은 빈 줄만큼 줄이 늘어 여유가 줄어든다
 - 연합뉴스 응답의 gzip 여부(`HEAD`가 405라 확인하지 못함)
 - 비밀번호가 있는 네트워크(WPA2)로의 연결: 에뮬레이터에는 개방형 AP만 있어 확인하지 못했다. 코드는 `setWpa2Passphrase`를 쓰지만 실제로 붙는지는 미검증이다

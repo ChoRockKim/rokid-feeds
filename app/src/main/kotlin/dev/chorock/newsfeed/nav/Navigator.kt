@@ -3,6 +3,9 @@ package dev.chorock.newsfeed.nav
 /** 글래스 입력 한 축: 이전·다음·선택·뒤로. (Rokid Nexus의 NEXT/PREV/SELECT/BACK과 같은 모델) */
 enum class NavKey { Previous, Next, Select, Back }
 
+/** [count]개 중 [index]에서 [delta]만큼 옮긴 위치. 양끝에서 순환한다. [count]가 0 이하면 [index]를 그대로 돌려준다. */
+fun wrapIndex(index: Int, delta: Int, count: Int): Int = if (count <= 0) index else Math.floorMod(index + delta, count)
+
 /**
  * 화면 상태. [openIndex]가 null이면 목록, 아니면 그 기사의 상세이며 [page]는 상세의 쪽 번호(0부터)다.
  */
@@ -56,5 +59,5 @@ class Navigator(
     }
 
     private fun wrap(state: NavState, delta: Int): NavState =
-        if (articleCount <= 0) state else state.copy(selected = Math.floorMod(state.selected + delta, articleCount))
+        if (articleCount <= 0) state else state.copy(selected = wrapIndex(state.selected, delta, articleCount))
 }

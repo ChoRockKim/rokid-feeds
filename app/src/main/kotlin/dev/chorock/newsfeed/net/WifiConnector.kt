@@ -32,6 +32,9 @@ class WifiConnector(context: Context) {
         if (!config.isConfigured) {
             return Result.failure(IllegalStateException("Wi-Fi 정보가 설정되지 않았습니다"))
         }
+        validatePassphrase(config.effectiveSecurity, config.password)?.let {
+            return Result.failure(IllegalStateException(it))
+        }
         if (!wifi.isWifiEnabled) {
             return Result.failure(IllegalStateException("Wi-Fi가 꺼져 있습니다. 먼저 켜 주세요"))
         }
@@ -39,7 +42,14 @@ class WifiConnector(context: Context) {
             release()
             val specifier = WifiNetworkSpecifier.Builder()
                 .setSsid(config.ssid)
-                .apply { if (!config.isOpen) setWpa2Passphrase(config.password) }
+                .apply {
+                    when (config.effectiveSecurity) {
+                        WifiSecurity.Wpa2 -> setWpa2Passphrase(config.password)
+                        WifiSecurity.Wpa3 -> setWpa3Passphrase(config.password)
+                        WifiSecurity.Owe -> setIsEnhancedOpen(true)
+                        WifiSecurity.Open, WifiSecurity.Unsupported -> Unit
+                    }
+                }
                 .build()
             val request = NetworkRequest.Builder()
                 .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)

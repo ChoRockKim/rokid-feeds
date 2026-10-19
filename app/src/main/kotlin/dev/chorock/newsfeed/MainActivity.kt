@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.platform.LocalContext
 import dev.chorock.newsfeed.data.Feed
 import dev.chorock.newsfeed.data.NewsApi
 import dev.chorock.newsfeed.nav.NavKey
@@ -29,6 +30,9 @@ import dev.chorock.newsfeed.nav.NavState
 import dev.chorock.newsfeed.nav.Navigator
 import dev.chorock.newsfeed.net.WifiConfig
 import dev.chorock.newsfeed.net.WifiConnector
+import dev.chorock.newsfeed.net.WifiScanner
+import dev.chorock.newsfeed.net.WifiStore
+import dev.chorock.newsfeed.net.openWifiSettings
 import dev.chorock.newsfeed.ui.DetailScreen
 import dev.chorock.newsfeed.ui.ErrorView
 import dev.chorock.newsfeed.ui.FeedScreen
@@ -36,10 +40,11 @@ import dev.chorock.newsfeed.ui.GlassFrame
 import dev.chorock.newsfeed.ui.Load
 import dev.chorock.newsfeed.ui.LoadingView
 import dev.chorock.newsfeed.ui.NavStateSaver
-import dev.chorock.newsfeed.ui.WifiScreen
-import dev.chorock.newsfeed.ui.WifiState
+import dev.chorock.newsfeed.ui.wifi.WifiFlowScreen
+import dev.chorock.newsfeed.ui.wifi.WifiState
 import dev.chorock.newsfeed.ui.handleNavigationKey
 import dev.chorock.newsfeed.util.buildDetailPages
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -51,7 +56,13 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun NewsApp(connector: WifiConnector, onExit: () -> Unit, api: NewsApi = remember { NewsApi() }) {
-    val wifiConfig = remember { WifiConfig.fromBuild() }
+    val context = LocalContext.current
+    val buildConfig = remember { WifiConfig.fromBuild() }
+    val wifiStore = remember { WifiStore(context) }
+    val scanner = remember { WifiScanner(context) }
+    // 사용자가 직접 골라 연결에 성공한 네트워크가 있으면 그것이 빌드 시점의 값보다 우선한다.
+    var savedConfig by remember { mutableStateOf(wifiStore.load()) }
+    val activeConfig = savedConfig ?: buildConfig.takeIf { it.isConfigured }
     val scope = rememberCoroutineScope()
     // 시작할 때 인터넷이 없으면 Wi-Fi 연결 화면부터 보여 준다.
     var needsWifi by remember { mutableStateOf(!connector.isOnline()) }
@@ -67,6 +78,18 @@ private fun NewsApp(connector: WifiConnector, onExit: () -> Unit, api: NewsApi =
             .fold({ Load.Success(it) }, { Load.Failure(it.message ?: it.javaClass.simpleName) })
         // 받기에 실패했는데 연결도 끊겨 있으면 오류 대신 Wi-Fi 연결 화면으로 보낸다.
         if (feed is Load.Failure && !connector.isOnline()) needsWifi = true
+    }
+
+    // Wi-Fi 화면에 있는 동안 연결이 생겼는지 가끔 확인한다. 설정 화면이나 Hi Rokid 앱에서 연결하고 돌아오면 바로 이어진다.
+    LaunchedEffect(needsWifi) {
+        while (needsWifi) {
+            delay(WIFI_POLL_MS)
+            if (connector.isOnline()) {
+                wifiState = WifiState.Idle
+                needsWifi = false
+                reload++
+            }
+        }
     }
 
     val loaded = (feed as? Load.Success)?.value
@@ -88,14 +111,19 @@ private fun NewsApp(connector: WifiConnector, onExit: () -> Unit, api: NewsApi =
     BackHandler(enabled = feedVisible) { dispatch(NavKey.Back) }
 
     when {
-        needsWifi -> WifiScreen(
-            config = wifiConfig,
+        needsWifi -> WifiFlowScreen(
+            active = activeConfig,
+            scanner = scanner,
             state = wifiState,
-            onConnect = {
+            onConnect = { config, fromUser ->
                 scope.launch {
                     wifiState = WifiState.Connecting
-                    connector.connect(wifiConfig).fold(
+                    connector.connect(config).fold(
                         onSuccess = {
+                            if (fromUser) {
+                                wifiStore.save(config)
+                                savedConfig = config
+                            }
                             wifiState = WifiState.Idle
                             needsWifi = false
                             reload++
@@ -104,6 +132,10 @@ private fun NewsApp(connector: WifiConnector, onExit: () -> Unit, api: NewsApi =
                     )
                 }
             },
+            onOpenSystemSettings = {
+                openWifiSettings(context).onFailure { wifiState = WifiState.Failed(it.message ?: "설정 화면을 열 수 없습니다") }
+            },
+            onExit = onExit,
         )
         feedVisible && openIndex != null -> DetailScreen(
             article = articles[openIndex],
@@ -142,3 +174,5 @@ private fun RetryOnEnter(onRetry: () -> Unit, content: @Composable () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) { content() }
 }
+
+private const val WIFI_POLL_MS = 2_000L

@@ -20,3 +20,7 @@
 - 시작할 때 인터넷이 없으면 Wi-Fi 연결 화면이 먼저 뜬다(`ui/WifiScreen.kt`). Enter(탭)로 `local.properties`의 `wifi.ssid`/`wifi.password`에 `WifiNetworkSpecifier`로 연결한다(`net/WifiConnector.kt`). 값은 `local.properties.example`을 복사해 채우고 커밋하지 않는다.
 - Wi-Fi 비밀번호는 빌드 시 APK(`BuildConfig`)에 들어간다. APK를 공유·배포할 때는 개인 Wi-Fi를 넣지 않는다. 비밀번호는 화면과 로그에 출력하지 않는다.
 - 시스템이 첫 연결 때 확인 창("Connect to device")을 띄운다. 앱이 건너뛸 수 없으므로 "완전 자동 연결"이라고 쓰지 않는다.
+- **에뮬레이터는 공유 자원일 수 있다.** 같은 adb 서버에 다른 세션이 붙어 있을 수 있으니, 이 프로젝트의 UI 확인은 전용 AVD(`NewsFeed_Test`, `~/.android/avd/`)를 `-port 5556`으로 띄우고 **모든 adb 명령에 `-s emulator-5556`을 붙인다**. `adb devices`에 모르는 기기가 있거나, 포그라운드에 이 앱이 아닌 앱이 있으면 키 입력·네트워크 변경을 멈추고 확인한다. 네트워크 설정(`svc data`, `cmd wifi`)을 바꿨으면 반드시 원래대로 되돌린다.
+- Wi-Fi는 **이 앱의 HUD 화면**(홈 → 목록 → 폼)이며 OS 설정 화면이 아니다. 내비게이션은 `nav/WifiFlow`, 줄 구성과 입력 검증은 `nav/WifiItems`, 보안 판별은 `net/WifiSecurity`에 두고 순수 로직은 JVM 테스트로 고정한다. OS 설정 화면은 목록 맨 아래의 보험 줄로만 남겨 둔다.
+- **Wi-Fi 목록 스캔에는 `ACCESS_FINE_LOCATION`(+위치 서비스)이 필요하다.** 안드로이드 13+에서도 `NEARBY_WIFI_DEVICES`로는 안 된다(공식 문서, API 36 에뮬레이터에서 확인). 스캔·연결 중 시스템 예외는 앱을 죽이지 않고 결과로 바꾼다.
+- 사용자가 고른 Wi-Fi는 성공했을 때만 `net/WifiStore`(Keystore AES-GCM)로 저장한다. SSID·비밀번호를 로그·화면·평문 저장소에 내보내지 않는다. 저장값이 빌드 시 값(`local.properties`)보다 우선한다.

@@ -5,7 +5,16 @@
     <!-- Wi-Fi 연결 화면: 연결 상태 확인, 지정한 Wi-Fi에 연결 요청 -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- WifiManager.startScan()이 요구한다. 없으면 스캔 요청이 SecurityException으로 앱을 죽인다 -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <!--
+      Wi-Fi 목록(startScan/getScanResults)은 안드로이드 13 이상에서도 ACCESS_FINE_LOCATION이 필요하다.
+      NEARBY_WIFI_DEVICES로는 대체되지 않는다(공식 문서, 에뮬레이터 API 36에서 SecurityException으로 확인).
+      안드로이드 12+는 정밀 권한을 요청할 때 대략적 권한(COARSE)도 함께 요청해야 한다. 앱은 위치를 쓰지 않는다.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
         android:allowBackup="false"
