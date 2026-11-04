@@ -126,7 +126,7 @@ app/src/main/kotlin/dev/chorock/newsfeed/
 │   ├── WifiStore.kt             # Keystore AES-GCM으로 암호화해 저장
 │   └── WifiSettings.kt          # 시스템 Wi-Fi 설정 화면 열기(보험)
 ├── ui/
-│   ├── GlassFrame.kt            # 480×352 캔버스, 작은 화면에서는 비율 유지 축소
+│   ├── GlassFrame.kt            # 480×282 캔버스(원래 352에서 20% 줄임, 아래 정렬), 작은 화면에서는 비율 유지 축소
 │   ├── Theme.kt                 # 글래스 색·글꼴 토큰
 │   ├── FeedScreen.kt, DetailScreen.kt, LoadState.kt
 │   ├── Keys.kt, NavStateSaver.kt  # 키 → NavKey 매핑(한 곳), 상태 보존

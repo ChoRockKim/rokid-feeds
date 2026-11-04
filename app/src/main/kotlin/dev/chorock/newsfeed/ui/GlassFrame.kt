@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.dp
 fun GlassFrame(content: @Composable () -> Unit) {
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize().background(Glass.Background),
-        contentAlignment = Alignment.Center,
+        contentAlignment = Alignment.BottomCenter, // 줄어든 만큼 위쪽이 빈다
     ) {
         val scale = minOf(maxWidth / Glass.WIDTH_DP.dp, maxHeight / Glass.HEIGHT_DP.dp).coerceAtMost(1.5f)
         Box(

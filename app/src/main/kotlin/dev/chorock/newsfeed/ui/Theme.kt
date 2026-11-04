@@ -15,11 +15,12 @@ object Glass {
     val Background = Color.Black
 
     const val WIDTH_DP = 480
-    const val HEIGHT_DP = 352
+    /** 원래 352. 안경 시야에서 위쪽이 잘 안 보여 박스 높이를 20% 줄였다(352 × 0.8 ≈ 282). */
+    const val HEIGHT_DP = 282
 
-    val Heading = TextStyle(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Primary)
-    val Body = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 15.sp, color = Primary)
-    val BodySmall = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 13.sp, color = Primary60)
-    val Label = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Primary)
-    val Caption = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 11.sp, color = Primary60)
+    val Heading = TextStyle(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Primary)
+    val Body = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 14.sp, color = Primary)
+    val BodySmall = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 12.sp, color = Primary60)
+    val Label = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Primary)
+    val Caption = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 10.sp, color = Primary60)
 }

@@ -105,8 +105,8 @@ class PagerTest {
     fun `긴 요약은 여러 쪽으로 나뉘고 짧은 요약은 링크까지 한 쪽에 들어간다`() {
         val long = buildDetailPages("가나다 ".repeat(300), "https://x.com/1")
         assertTrue(long.size >= 3)
-        // 연합뉴스급 짧은 요약(약 80~150자)은 링크 때문에 쪽이 늘어나지 않는다
-        assertEquals(1, buildDetailPages("가".repeat(120), "https://www.yna.co.kr/view/AKR20261019142000054").size)
+        // 연합뉴스급 짧은 요약(윗부분 20% 비운 뒤 상한이 줄어 약 75자까지)은 링크 때문에 쪽이 늘어나지 않는다
+        assertEquals(1, buildDetailPages("가".repeat(75), "https://www.yna.co.kr/view/AKR20261019142000054").size)
     }
 
     @Test
