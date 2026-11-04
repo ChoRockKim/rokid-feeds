@@ -42,9 +42,8 @@ fun DetailScreen(
     LaunchedEffect(Unit) { focus.requestFocus() }
 
     // 쪽 전체가 포커스 가능한 노드 하나다. 링의 탭(ACTION_CLICK)은 다음 쪽, 스크롤 동작은 쪽 이동으로 받는다.
-    val scrollState = remember {
-        ScrollAxisRange(value = { 0f }, maxValue = { 1f })
-    }
+    // 스크롤 위치를 현재 쪽 번호로 알려야 접근성이 "뒤로 스크롤"을 쓸 수 있다(0으로 고정하면 맨 앞이라 뒤로 가기가 막힌다).
+    val scrollState = ScrollAxisRange(value = { pageIndex.toFloat() }, maxValue = { pages.lastIndex.toFloat() })
     Column(
         modifier = Modifier
             .fillMaxSize()
