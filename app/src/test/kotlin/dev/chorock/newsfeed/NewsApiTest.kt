@@ -44,7 +44,7 @@ class NewsApiTest {
     fun stop() = server.stop(0)
 
     @Test
-    fun `세 언론사를 합쳐 최신순으로 정렬하고 언론사 이름을 붙인다`() = runBlocking {
+    fun `소스를 번갈아 합치고 언론사 이름을 붙인다`() = runBlocking {
         val feed = NewsApi(listOf(FeedSource("A사", "$base/a"), FeedSource("B사", "$base/b"))).feed()
         assertEquals(listOf("a-new", "b-mid", "a-old"), feed.articles.map { it.title })
         assertEquals(listOf("A사", "B사", "A사"), feed.articles.map { it.source })

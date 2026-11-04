@@ -1,6 +1,6 @@
 # news-feed 문서
 
-연합뉴스·동아일보·경향신문 RSS와 GeekNews(Atom)를 **하나의 통합 목록**(소스별 10개씩, 총 40개, 최신순)으로 보여 주고, 항목을 열면 상세(제목·언론사·기자·시간·요약·링크)를 보여 주는 Android 앱.
+연합뉴스·동아일보·경향신문 RSS와 GeekNews(Atom)를 **하나의 통합 목록**(소스별 10개씩, 총 40개, 소스를 번갈아 끼워 넣음)으로 보여 주고, 항목을 열면 상세(제목·언론사·기자·시간·요약·링크)를 보여 주는 Android 앱.
 Rokid 글래스 단색 HUD 규격(480×352, 녹색)으로 만들었고 폰 에뮬레이터에서 검증했다.
 
 | 통합 피드 | 상세 1쪽 | 상세 2쪽 | 오류 (전부 실패) |
@@ -119,7 +119,7 @@ app/src/main/kotlin/dev/chorock/newsfeed/
 ├── data/
 │   ├── NewsApi.kt               # 언론사 3곳 병렬 다운로드 + 병합, 부분 실패 처리
 │   ├── BoundedHttp.kt           # 크기·리다이렉트·타임아웃 상한이 있는 GET
-│   ├── NewsMerge.kt             # 최신순 병합 (시각 불명은 맨 뒤)
+│   ├── NewsMerge.kt             # 소스 번갈아 병합(라운드 로빈), 소스 안은 최신순 (시각 불명은 그 소스의 맨 뒤)
 │   ├── RssParser.kt             # <item> → Article (CDATA·엔티티·pubDate/dc:date)
 │   └── Models.kt                # FeedSource, Article, Feed
 ├── nav/
