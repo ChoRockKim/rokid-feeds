@@ -1,6 +1,7 @@
 package dev.chorock.newsfeed
 
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -51,6 +52,8 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 읽는 동안 화면이 꺼지지 않게 한다. 앱이 보이는 동안만 적용되고 다른 앱으로 가면 해제된다(별도 권한 불필요).
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         // 미리보기용: `adb shell am start -n ... --es feed geeknews`면 GeekNews만 보여 준다.
         val only = if (intent.getStringExtra("feed") == "geeknews") listOf(NewsApi.GEEKNEWS) else null
         setContent {
