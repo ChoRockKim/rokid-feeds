@@ -34,6 +34,7 @@ fun WifiFormPage(
     state: WifiState,
     error: String?,
     onClick: (Int) -> Unit,
+    onFocused: (Int) -> Unit,
     onSubmit: () -> Unit,
     onNextField: () -> Unit,
 ) {
@@ -53,20 +54,20 @@ fun WifiFormPage(
                         label = "SSID", value = ssid, onValueChange = onSsid, selected = isSelected,
                         focusRequester = ssidFocus, password = false, masked = false, onDone = onNextField,
                     )
-                    FormItem.Security -> WifiRow(isSelected, onClick = { onClick(index) }) {
+                    FormItem.Security -> WifiRow(isSelected, onFocused = { onFocused(index) }, onClick = { onClick(index) }) {
                         BasicText("보안: ${security.label}  (Enter로 변경)", style = Glass.Body)
                     }
                     FormItem.Password -> WifiTextField(
                         label = "비밀번호", value = password, onValueChange = onPassword, selected = isSelected,
                         focusRequester = passwordFocus, password = true, masked = !reveal, onDone = onSubmit,
                     )
-                    FormItem.Reveal -> WifiRow(isSelected, onClick = { onClick(index) }) {
+                    FormItem.Reveal -> WifiRow(isSelected, onFocused = { onFocused(index) }, onClick = { onClick(index) }) {
                         BasicText("비밀번호 표시: ${if (reveal) "켬" else "끔"}", style = Glass.Body)
                     }
-                    FormItem.Connect -> WifiRow(isSelected, enabled = state !is WifiState.Connecting, onClick = { onClick(index) }) {
+                    FormItem.Connect -> WifiRow(isSelected, enabled = state !is WifiState.Connecting, onFocused = { onFocused(index) }, onClick = { onClick(index) }) {
                         BasicText(if (state is WifiState.Connecting) "연결 중..." else "연결", style = Glass.Label)
                     }
-                    FormItem.Cancel -> WifiRow(isSelected, onClick = { onClick(index) }) {
+                    FormItem.Cancel -> WifiRow(isSelected, onFocused = { onFocused(index) }, onClick = { onClick(index) }) {
                         BasicText("취소", style = Glass.Body)
                     }
                 }

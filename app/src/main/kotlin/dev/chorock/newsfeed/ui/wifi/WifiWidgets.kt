@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -29,6 +30,8 @@ import dev.chorock.newsfeed.ui.Glass
 fun WifiRow(
     selected: Boolean,
     enabled: Boolean = true,
+    focusable: Boolean = true,
+    onFocused: () -> Unit = {},
     onClick: () -> Unit,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -37,7 +40,13 @@ fun WifiRow(
         modifier = Modifier
             .fillMaxWidth()
             .border(border, RoundedCornerShape(12.dp))
-            .clickable(enabled = enabled, onClick = onClick)
+            .then(
+                if (focusable) {
+                    Modifier
+                        .onFocusChanged { if (it.isFocused) onFocused() }
+                        .clickable(enabled = enabled, onClick = onClick)
+                } else Modifier,
+            )
             .padding(horizontal = 12.dp, vertical = 6.dp),
         content = content,
     )
@@ -58,7 +67,8 @@ fun WifiTextField(
     masked: Boolean,
     onDone: () -> Unit,
 ) {
-    WifiRow(selected = selected, onClick = {}) {
+    // 입력칸은 BasicTextField가 포커스 정지점이다. 감싸는 줄까지 클릭 가능하면 링이 한 칸에서 두 번 멈춘다.
+    WifiRow(selected = selected, focusable = false, onClick = {}) {
         BasicText(label, style = Glass.Caption)
         BasicTextField(
             value = value,

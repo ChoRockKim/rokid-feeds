@@ -119,7 +119,15 @@ fun WifiFlowScreen(
 
     // 입력칸을 고르면 그 칸에 실제 포커스를 줘서 폰 앱의 글자를 받게 한다. 다른 줄이면 루트가 포커스를 가져 ←/→를 받는다.
     val selectedForm = formItems.getOrNull(flow.formSelected)
+    // 링이 줄에 직접 포커스를 줘서 선택이 바뀐 경우([focusDriven])엔 그 포커스를 빼앗지 않는다.
+    var focusDriven by remember { mutableStateOf(false) }
     LaunchedEffect(flow.page, flow.formSelected, formItems) {
+        if (focusDriven && selectedForm != FormItem.Ssid && selectedForm != FormItem.Password) {
+            focusDriven = false
+            keyboard?.hide()
+            return@LaunchedEffect
+        }
+        focusDriven = false
         val target = when {
             flow.page != WifiPage.Form -> rootFocus
             selectedForm == FormItem.Ssid -> ssidFocus
@@ -189,6 +197,16 @@ fun WifiFlowScreen(
         result.activated?.let { activate(it) }
     }
 
+    fun focused(index: Int) {
+        if (WifiFlow.selected(flow) == index) return
+        focusDriven = true
+        flow = when (flow.page) {
+            WifiPage.Home -> flow.copy(homeSelected = index)
+            WifiPage.Picker -> flow.copy(pickerSelected = index)
+            WifiPage.Form -> flow.copy(formSelected = index)
+        }
+    }
+
     fun tap(index: Int) {
         flow = when (flow.page) {
             WifiPage.Home -> flow.copy(homeSelected = index)
@@ -209,8 +227,8 @@ fun WifiFlowScreen(
             .focusable(),
     ) {
         when (flow.page) {
-            WifiPage.Home -> WifiHomePage(active, state, flow.homeSelected, onClick = ::tap)
-            WifiPage.Picker -> WifiPickerPage(pickerItems, flow.pickerSelected, scan, state, notice, onClick = ::tap)
+            WifiPage.Home -> WifiHomePage(active, state, flow.homeSelected, onClick = ::tap, onFocused = ::focused)
+            WifiPage.Picker -> WifiPickerPage(pickerItems, flow.pickerSelected, scan, state, notice, onClick = ::tap, onFocused = ::focused)
             WifiPage.Form -> WifiFormPage(
                 title = if (manual) "직접 입력" else ssid,
                 items = formItems,
@@ -227,6 +245,7 @@ fun WifiFlowScreen(
                 state = state,
                 error = formError,
                 onClick = ::tap,
+                onFocused = ::focused,
                 onSubmit = ::submit,
                 onNextField = { activate(flow.formSelected) },
             )

@@ -151,6 +151,7 @@ private fun NewsApp(connector: WifiConnector, onExit: () -> Unit, api: NewsApi =
             feed = loaded,
             selectedIndex = shown.selected,
             onKey = ::dispatch,
+            onFocused = { index -> if (shown.selected != index) nav = shown.copy(selected = index) },
             onTap = { index ->
                 nav = shown.copy(selected = index)
                 dispatch(NavKey.Select)

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -24,6 +25,7 @@ fun WifiHomePage(
     state: WifiState,
     selected: Int,
     onClick: (Int) -> Unit,
+    onFocused: (Int) -> Unit,
 ) {
     val connecting = state is WifiState.Connecting
     val labels = listOf(if (connecting) "연결 중..." else "Wi-Fi 연결", "Wi-Fi 선택")
@@ -55,6 +57,7 @@ fun WifiHomePage(
                             color = if (isSelected && enabled[index]) Glass.Primary else Glass.Primary40,
                             shape = RoundedCornerShape(12.dp),
                         )
+                        .onFocusChanged { if (it.isFocused) onFocused(index) }
                         .clickable(enabled = enabled[index]) { onClick(index) }
                         .padding(horizontal = 18.dp, vertical = 10.dp),
                 )

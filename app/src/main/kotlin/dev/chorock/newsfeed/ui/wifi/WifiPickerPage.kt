@@ -28,9 +28,11 @@ fun WifiPickerPage(
     state: WifiState,
     notice: String?,
     onClick: (Int) -> Unit,
+    onFocused: (Int) -> Unit,
 ) {
     val listState = rememberLazyListState()
-    LaunchedEffect(selected) { listState.animateScrollToItem(selected.coerceIn(0, (items.size - 1).coerceAtLeast(0))) }
+    // 위 줄도 화면에 남겨야 ↑/링 뒤로 이동이 가능하다.
+    LaunchedEffect(selected) { listState.animateScrollToItem((selected - 1).coerceIn(0, (items.size - 1).coerceAtLeast(0))) }
 
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         BasicText("Wi-Fi 선택  ${selected + 1}/${items.size}", style = Glass.Heading)
@@ -40,7 +42,7 @@ fun WifiPickerPage(
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             itemsIndexed(items) { index, item ->
-                WifiRow(selected = index == selected, onClick = { onClick(index) }) {
+                WifiRow(selected = index == selected, onFocused = { onFocused(index) }, onClick = { onClick(index) }) {
                     when (item) {
                         PickerItem.Permission -> {
                             BasicText("목록을 보려면 위치 권한 허용", style = Glass.Label)

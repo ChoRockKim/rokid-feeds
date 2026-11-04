@@ -1,6 +1,6 @@
 package dev.chorock.newsfeed.ui
 
-import androidx.compose.foundation.focusable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,7 +12,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.semantics.ScrollAxisRange
+import androidx.compose.ui.semantics.scrollBy
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.verticalScrollAxisRange
+import dev.chorock.newsfeed.nav.pageKeyForScroll
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.chorock.newsfeed.data.Article
@@ -28,17 +35,29 @@ fun DetailScreen(
     pageIndex: Int,
     onKey: (NavKey) -> Unit,
 ) {
+    val currentOnKey by rememberUpdatedState(onKey)
     val focus = remember { FocusRequester() }
     val page = pages[pageIndex.coerceIn(0, pages.lastIndex)]
 
     LaunchedEffect(Unit) { focus.requestFocus() }
 
+    // 쪽 전체가 포커스 가능한 노드 하나다. 링의 탭(ACTION_CLICK)은 다음 쪽, 스크롤 동작은 쪽 이동으로 받는다.
+    val scrollState = remember {
+        ScrollAxisRange(value = { 0f }, maxValue = { 1f })
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .focusRequester(focus)
-            .focusable()
-            .onKeyEvent { event -> navKeyOf(event)?.let { onKey(it); true } ?: false },
+            .onPreviewKeyEvent { event -> navKeyOf(event)?.let { currentOnKey(it); true } ?: false }
+            .semantics {
+                verticalScrollAxisRange = scrollState
+                scrollBy { x, y ->
+                    pageKeyForScroll(x, y)?.let { currentOnKey(it) }
+                    true
+                }
+            }
+            .clickable { currentOnKey(NavKey.Select) },
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (page.showHeader) {
