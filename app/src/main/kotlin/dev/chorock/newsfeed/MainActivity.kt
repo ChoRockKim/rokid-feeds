@@ -14,6 +14,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -24,6 +25,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalContext
+import dev.chorock.newsfeed.data.ArticleBodies
 import dev.chorock.newsfeed.data.Feed
 import dev.chorock.newsfeed.data.NewsApi
 import dev.chorock.newsfeed.nav.NavKey
@@ -110,11 +112,29 @@ private fun NewsApp(connector: WifiConnector, onExit: () -> Unit, api: NewsApi =
     val loaded = (feed as? Load.Success)?.value
     val articles = loaded?.articles.orEmpty()
     // 기사마다 상세 쪽을 한 번만 나눈다. 내비게이션은 이 쪽 수를 보고 끝에서 멈춘다.
-    val pages = remember(articles) { articles.map { buildDetailPages(it.summary, it.link) } }
-    val navigator = remember(articles) { Navigator(articles.size) { pages[it].size } }
+    // RSS 요약은 언론사가 잘라 주므로 상세를 열면 원문에서 본문을 받아 쓴다. 받기 전이나 실패하면 요약을 보여 준다.
+    val bodies = remember { mutableStateMapOf<String, String>() }
+    var loadingBody by remember { mutableStateOf<String?>(null) }
+    val bodyLoader = remember { ArticleBodies() }
+    val pages = remember(articles, bodies.size) { articles.map { buildDetailPages(bodies[it.link] ?: it.summary, it.link) } }
+    val navigator = remember(articles, pages) { Navigator(articles.size) { pages[it].size } }
     val shown = navigator.normalize(nav)
     val openIndex = shown.openIndex
     val feedVisible = !needsWifi && articles.isNotEmpty()
+
+    val openLink = openIndex?.let { articles.getOrNull(it)?.link }
+    LaunchedEffect(openLink) {
+        val link = openLink ?: return@LaunchedEffect
+        if (link in bodies) return@LaunchedEffect
+        loadingBody = link
+        try {
+            val body = bodyLoader.load(link)
+            val summaryLength = articles.firstOrNull { it.link == link }?.summary?.length ?: 0
+            if (body != null && body.length > summaryLength) bodies[link] = body
+        } finally {
+            loadingBody = null
+        }
+    }
 
     fun dispatch(key: NavKey) {
         val result = navigator.reduce(nav, key)
@@ -168,6 +188,7 @@ private fun NewsApp(connector: WifiConnector, onExit: () -> Unit, api: NewsApi =
             article = articles[openIndex],
             pages = pages[openIndex],
             pageIndex = shown.page,
+            loading = loadingBody != null && loadingBody == openLink,
             onKey = ::dispatch,
         )
         feed is Load.Loading -> LoadingView()

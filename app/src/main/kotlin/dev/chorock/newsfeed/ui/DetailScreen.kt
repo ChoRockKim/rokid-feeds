@@ -33,6 +33,7 @@ fun DetailScreen(
     article: Article,
     pages: List<DetailPage>,
     pageIndex: Int,
+    loading: Boolean = false,
     onKey: (NavKey) -> Unit,
 ) {
     val currentOnKey by rememberUpdatedState(onKey)
@@ -74,7 +75,7 @@ fun DetailScreen(
         page.link?.let { BasicText(it, style = Glass.Caption, maxLines = 3, overflow = TextOverflow.Ellipsis) }
         Column(Modifier.weight(1f)) {}
         BasicText(
-            "${pageIndex + 1}/${pages.size} · ◀ ▶ 쪽 · Enter 다음 · Back 목록",
+            if (loading) "${pageIndex + 1}/${pages.size} · 본문 불러오는 중…" else "${pageIndex + 1}/${pages.size} · ◀ ▶ 쪽 · Enter 다음 · Back 목록",
             style = Glass.Caption,
             maxLines = 1,
             modifier = Modifier.padding(top = 2.dp),

@@ -15,7 +15,7 @@
 - 뉴스 출처는 `data/NewsApi.kt`의 `SOURCES`에만 두고, 소스별 10개씩 받아 `data/NewsMerge.kt`에서 소스를 번갈아 한 개씩 끼워 합친다(시각순으로만 정렬하면 몇 시간 전 GeekNews 글이 뒤로 밀려 보이지 않는다). 각 소스 안에서는 최신순이다. 일부 언론사만 실패하면 성공한 기사만 보여 주고 실패한 이름을 푸터에 표시한다. 피드를 추가하기 전에 HTTP 200, UTF-8, 요약(description) 유무, 크기를 직접 확인한다(한겨레는 요약 없음, SBS는 790KB라 제외했다).
 - RSS는 정규식으로 `<item>`만 읽는다(`data/RssParser.kt`). DTD·엔티티 해석을 하지 않으려는 선택이며, 이 한계는 파서 주석에 적혀 있다.
 - 순수 로직(`RssParser`, `mergeArticles`, `htmlToText`, `timeAgo`)과 `NewsApi`(로컬 HTTP 서버)는 JVM 단위 테스트로 검증한다.
-- 기사 본문과 요약의 저작권은 각 언론사에 있다. 이 앱은 RSS가 제공하는 제목·요약·링크만 표시하고 원문 링크를 함께 보여 준다.
+- 기사 본문과 요약의 저작권은 각 언론사에 있다. RSS 요약은 언론사가 83~500자로 잘라 주므로, 상세를 열면 연합뉴스·동아일보·경향신문은 원문 페이지에서 본문을 받아 최대 2,400자까지 보여 준다(`data/ArticleBody.kt`, 소스별 규칙). 구조가 바뀌어 못 뽑으면 RSS 요약으로 폴백하고, 원문 링크를 함께 보여 준다. GeekNews는 요약이 충분해 본문을 받지 않는다.
 - 실기기(Rokid 글래스) 설치는 허락을 받은 뒤에 한다. 현재 연결된 기기는 없다.
 - 시작할 때 인터넷이 없으면 Wi-Fi 연결 화면이 먼저 뜬다(`ui/WifiScreen.kt`). Enter(탭)로 `local.properties`의 `wifi.ssid`/`wifi.password`에 `WifiNetworkSpecifier`로 연결한다(`net/WifiConnector.kt`). 값은 `local.properties.example`을 복사해 채우고 커밋하지 않는다.
 - Wi-Fi 비밀번호는 빌드 시 APK(`BuildConfig`)에 들어간다. APK를 공유·배포할 때는 개인 Wi-Fi를 넣지 않는다. 비밀번호는 화면과 로그에 출력하지 않는다.
