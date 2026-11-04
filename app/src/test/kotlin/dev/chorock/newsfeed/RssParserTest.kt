@@ -115,4 +115,19 @@ class RssParserTest {
             <rss><channel><item><title>&x;</title><link>https://x.com/1</link></item></channel></rss>"""
         assertEquals("&x;", RssParser.parse(xml).single().title)
     }
+
+    @Test
+    fun `Atom entry는 href 링크, content, published를 읽고 목록 항목은 줄을 나눈다`() {
+        val xml = """<?xml version='1.0'?><feed xmlns='http://www.w3.org/2005/Atom'><title>GN</title>
+            <entry><title><![CDATA[JVM 시작 시간 줄이기]]></title>
+              <link rel='alternate' type='text/html' href='https://news.hada.io/topic?id=1&amp;utm=x' />
+              <published>2026-11-04T11:30:57+09:00</published><author><name>neo</name></author>
+              <content type='html'><![CDATA[<div><ul><li><b>첫째</b>임</li><li>둘째임</li></ul></div>]]></content></entry></feed>"""
+        val a = RssParser.parse(xml).single()
+        assertEquals("JVM 시작 시간 줄이기", a.title)
+        assertEquals("https://news.hada.io/topic?id=1&utm=x", a.link)
+        assertEquals("neo", a.author)
+        assertEquals("첫째임\n둘째임", a.summary)
+        assertEquals(java.time.OffsetDateTime.parse("2026-11-04T11:30:57+09:00").toEpochSecond(), a.publishedAt)
+    }
 }

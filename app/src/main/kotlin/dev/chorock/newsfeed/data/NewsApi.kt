@@ -32,14 +32,18 @@ class NewsApi(
     }
 
     companion object {
-        /** 언론사마다 최신 기사를 이만큼씩 가져와 합친다(총 30개). */
+        /** Atom, 키 불필요. 2026-11-04에 HTTP 200·20건·한국어를 확인했다. */
+        val GEEKNEWS = FeedSource("GeekNews", "https://news.hada.io/rss/news")
+
+        /** 소스마다 최신 글을 이만큼씩 가져와 합친다(총 40개). */
         const val PER_SOURCE = 10
 
-        /** 2026-10-19에 모두 HTTP 200, UTF-8, 요약 포함을 확인했다. 한겨레(요약 없음)·SBS(790KB)는 제외. */
+        /** 언론사 3곳은 2026-10-19에 모두 HTTP 200, UTF-8, 요약 포함을 확인했다. 한겨레(요약 없음)·SBS(790KB)는 제외. */
         val SOURCES = listOf(
             FeedSource("연합뉴스", "https://www.yna.co.kr/rss/news.xml"),
             FeedSource("동아일보", "https://rss.donga.com/total.xml"),
             FeedSource("경향신문", "https://www.khan.co.kr/rss/rssdata/total_news.xml"),
+            GEEKNEWS,
         )
     }
 }

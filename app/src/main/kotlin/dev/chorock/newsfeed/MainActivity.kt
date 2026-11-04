@@ -50,7 +50,17 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { GlassFrame { NewsApp(connector = remember { WifiConnector(this) }, onExit = { finish() }) } }
+        // 미리보기용: `adb shell am start -n ... --es feed geeknews`면 GeekNews만 보여 준다.
+        val only = if (intent.getStringExtra("feed") == "geeknews") listOf(NewsApi.GEEKNEWS) else null
+        setContent {
+            GlassFrame {
+                NewsApp(
+                    connector = remember { WifiConnector(this) },
+                    onExit = { finish() },
+                    api = remember { if (only != null) NewsApi(sources = only) else NewsApi() },
+                )
+            }
+        }
     }
 }
 
