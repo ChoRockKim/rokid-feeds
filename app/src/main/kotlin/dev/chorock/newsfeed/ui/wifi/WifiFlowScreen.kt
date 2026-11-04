@@ -76,6 +76,7 @@ fun WifiFlowScreen(
     isWifiEnabled: () -> Boolean,
     onEnableWifi: () -> Unit,
     onOpenSystemSettings: () -> Unit,
+    onCancelConnect: () -> Unit,
     onExit: () -> Unit,
 ) {
     // Wi-Fi 라디오 상태. 사용자가 시스템 패널에서 켜고 돌아오면 바로 반영하려고 가끔 읽는다.
@@ -88,7 +89,9 @@ fun WifiFlowScreen(
     }
     // 저장된 네트워크로 연결을 자동으로 다시 시도한 횟수. Wi-Fi를 껐다 켜거나 버튼을 누르면 0으로 돌아간다.
     var autoAttempts by remember { mutableIntStateOf(0) }
-    LaunchedEffect(wifiOn) { if (!wifiOn) autoAttempts = 0 }
+    // 사용자가 화면을 만지면 자동 재시도를 멈춘다. 시스템 확인 창이 앱을 덮으면 버튼이 안 눌리는 것처럼 보인다.
+    var userActive by remember { mutableStateOf(false) }
+    LaunchedEffect(wifiOn) { if (!wifiOn) { autoAttempts = 0; userActive = false } }
 
     var flow by rememberSaveable(stateSaver = WifiFlowStateSaver) { mutableStateOf(WifiFlowState()) }
     var networks by remember { mutableStateOf<List<WifiNetwork>>(emptyList()) }
@@ -159,8 +162,8 @@ fun WifiFlowScreen(
     }
 
     val hasSaved = active?.isConfigured == true
-    LaunchedEffect(wifiOn, hasSaved, flow.page, state, autoAttempts) {
-        if (!shouldAutoRetry(wifiOn, hasSaved, flow.page == WifiPage.Home, state is WifiState.Connecting, autoAttempts)) {
+    LaunchedEffect(wifiOn, hasSaved, flow.page, state, autoAttempts, userActive) {
+        if (!shouldAutoRetry(wifiOn, hasSaved, flow.page == WifiPage.Home, state is WifiState.Connecting, autoAttempts, userActive)) {
             return@LaunchedEffect
         }
         delay(if (autoAttempts == 0) AUTO_RETRY_FIRST_DELAY_MS else AUTO_RETRY_INTERVAL_MS)
@@ -193,7 +196,7 @@ fun WifiFlowScreen(
                     autoAttempts = 0
                     active?.takeIf { it.isConfigured }?.let { onConnect(it, false) }
                 }
-                else -> { notice = null; flow = WifiFlow.open(flow, WifiPage.Picker) }
+                else -> { notice = null; onCancelConnect(); flow = WifiFlow.open(flow, WifiPage.Picker) }
             }
             WifiPage.Picker -> when (val item = pickerItems.getOrNull(index)) {
                 PickerItem.Permission -> permission.launch(scanner.requiredPermissions)
@@ -223,6 +226,7 @@ fun WifiFlowScreen(
     }
 
     fun dispatch(key: NavKey) {
+        userActive = true
         val result = WifiFlow.reduce(flow, key, itemCount)
         flow = result.state
         if (key != NavKey.Select) notice = null
@@ -232,6 +236,7 @@ fun WifiFlowScreen(
 
     fun focused(index: Int) {
         if (WifiFlow.selected(flow) == index) return
+        userActive = true
         focusDriven = true
         flow = when (flow.page) {
             WifiPage.Home -> flow.copy(homeSelected = index)
@@ -241,6 +246,7 @@ fun WifiFlowScreen(
     }
 
     fun tap(index: Int) {
+        userActive = true
         flow = when (flow.page) {
             WifiPage.Home -> flow.copy(homeSelected = index)
             WifiPage.Picker -> flow.copy(pickerSelected = index)

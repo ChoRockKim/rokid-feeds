@@ -182,6 +182,10 @@ private fun NewsApp(connector: WifiConnector, onExit: () -> Unit, api: NewsApi =
             onOpenSystemSettings = {
                 openWifiSettings(context).onFailure { wifiState = WifiState.Failed(it.message ?: "설정 화면을 열 수 없습니다") }
             },
+            onCancelConnect = {
+                connector.cancelPending()
+                if (wifiState is WifiState.Connecting) wifiState = WifiState.Idle
+            },
             onExit = onExit,
         )
         feedVisible && openIndex != null -> DetailScreen(

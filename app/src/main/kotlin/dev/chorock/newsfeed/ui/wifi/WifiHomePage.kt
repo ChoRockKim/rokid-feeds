@@ -32,7 +32,8 @@ fun WifiHomePage(
     val connecting = state is WifiState.Connecting
     val labels = listOf(if (connecting) "연결 중..." else if (!wifiOn) "Wi-Fi 켜기" else "Wi-Fi 연결", "Wi-Fi 선택")
     // Wi-Fi가 꺼져 있으면 저장된 네트워크가 없어도 "켜기"는 누를 수 있다.
-    val enabled = listOf(!connecting && (!wifiOn || active?.isConfigured == true), !connecting)
+    // "선택"은 연결 중에도 눌러 빠져나갈 수 있어야 한다(시스템 확인 창에서 막히면 갇힌다).
+    val enabled = listOf(!connecting && (!wifiOn || active?.isConfigured == true), true)
 
     Column(
         modifier = Modifier.fillMaxSize(),
