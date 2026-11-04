@@ -20,6 +20,9 @@ class WifiConnector(context: Context) {
     private val wifi = context.applicationContext.getSystemService(WifiManager::class.java)
     private var callback: ConnectivityManager.NetworkCallback? = null
 
+    /** 연결 요청을 보냈지만 아직 결과(성공/실패)를 받지 못한 상태. */
+    private var pending = false
+
     /** 인터넷이 실제로 되는 네트워크(검증됨)가 있으면 true. */
     fun isOnline(): Boolean {
         val network = connectivity.activeNetwork ?: return false
@@ -27,6 +30,9 @@ class WifiConnector(context: Context) {
         return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
             caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
+
+    /** Wi-Fi 라디오가 켜져 있으면 true. 앱은 Android 10부터 Wi-Fi를 직접 켜고 끌 수 없어 상태만 읽는다. */
+    fun isWifiEnabled(): Boolean = wifi.isWifiEnabled
 
     suspend fun connect(config: WifiConfig): Result<Unit> {
         if (!config.isConfigured) {
@@ -57,11 +63,13 @@ class WifiConnector(context: Context) {
                 .build()
             val networkCallback = object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
+                    pending = false
                     connectivity.bindProcessToNetwork(network)
                     if (continuation.isActive) continuation.resume(Result.success(Unit))
                 }
 
                 override fun onUnavailable() {
+                    pending = false
                     if (continuation.isActive) {
                         continuation.resume(Result.failure(IllegalStateException("${config.ssid}에 연결하지 못했습니다")))
                     }
@@ -72,12 +80,22 @@ class WifiConnector(context: Context) {
                 }
             }
             callback = networkCallback
+            pending = true
             connectivity.requestNetwork(request, networkCallback, CONNECT_TIMEOUT_MS)
             continuation.invokeOnCancellation { release() }
         }
     }
 
+    /**
+     * 결과를 못 받은 연결 요청이 있으면 취소한다(시스템이 먼저 연결했을 때 확인 창이 남지 않게).
+     * 이미 연결된 요청은 그대로 둔다. 취소하면 앱이 그 네트워크에서 떨어진다.
+     */
+    fun cancelPending() {
+        if (pending) release()
+    }
+
     fun release() {
+        pending = false
         callback?.let { runCatching { connectivity.unregisterNetworkCallback(it) } }
         callback = null
         connectivity.bindProcessToNetwork(null)

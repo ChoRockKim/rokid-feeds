@@ -32,6 +32,7 @@ import dev.chorock.newsfeed.net.WifiConfig
 import dev.chorock.newsfeed.net.WifiConnector
 import dev.chorock.newsfeed.net.WifiScanner
 import dev.chorock.newsfeed.net.WifiStore
+import dev.chorock.newsfeed.net.openWifiPanel
 import dev.chorock.newsfeed.net.openWifiSettings
 import dev.chorock.newsfeed.ui.DetailScreen
 import dev.chorock.newsfeed.ui.ErrorView
@@ -95,6 +96,7 @@ private fun NewsApp(connector: WifiConnector, onExit: () -> Unit, api: NewsApi =
         while (needsWifi) {
             delay(WIFI_POLL_MS)
             if (connector.isOnline()) {
+                connector.cancelPending()
                 wifiState = WifiState.Idle
                 needsWifi = false
                 reload++
@@ -127,6 +129,14 @@ private fun NewsApp(connector: WifiConnector, onExit: () -> Unit, api: NewsApi =
             state = wifiState,
             onConnect = { config, fromUser ->
                 scope.launch {
+                    // 자동 재시도 사이에 시스템이 이미 연결했으면 연결 요청(확인 창)을 만들지 않고 넘어간다.
+                    if (!fromUser && connector.isOnline()) {
+                        connector.cancelPending()
+                        wifiState = WifiState.Idle
+                        needsWifi = false
+                        reload++
+                        return@launch
+                    }
                     wifiState = WifiState.Connecting
                     connector.connect(config).fold(
                         onSuccess = {
@@ -141,6 +151,10 @@ private fun NewsApp(connector: WifiConnector, onExit: () -> Unit, api: NewsApi =
                         onFailure = { wifiState = WifiState.Failed(it.message ?: "연결하지 못했습니다") },
                     )
                 }
+            },
+            isWifiEnabled = connector::isWifiEnabled,
+            onEnableWifi = {
+                openWifiPanel(context).onFailure { wifiState = WifiState.Failed(it.message ?: "Wi-Fi 설정을 열 수 없습니다") }
             },
             onOpenSystemSettings = {
                 openWifiSettings(context).onFailure { wifiState = WifiState.Failed(it.message ?: "설정 화면을 열 수 없습니다") }

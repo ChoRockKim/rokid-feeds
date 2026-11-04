@@ -24,12 +24,15 @@ fun WifiHomePage(
     active: WifiConfig?,
     state: WifiState,
     selected: Int,
+    wifiOn: Boolean,
+    autoNote: String?,
     onClick: (Int) -> Unit,
     onFocused: (Int) -> Unit,
 ) {
     val connecting = state is WifiState.Connecting
-    val labels = listOf(if (connecting) "연결 중..." else "Wi-Fi 연결", "Wi-Fi 선택")
-    val enabled = listOf(!connecting && active?.isConfigured == true, !connecting)
+    val labels = listOf(if (connecting) "연결 중..." else if (!wifiOn) "Wi-Fi 켜기" else "Wi-Fi 연결", "Wi-Fi 선택")
+    // Wi-Fi가 꺼져 있으면 저장된 네트워크가 없어도 "켜기"는 누를 수 있다.
+    val enabled = listOf(!connecting && (!wifiOn || active?.isConfigured == true), !connecting)
 
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -37,7 +40,12 @@ fun WifiHomePage(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         BasicText("Wi-Fi 연결이 필요합니다", style = Glass.Heading)
-        if (active?.isConfigured == true) {
+        if (!wifiOn) {
+            BasicText(
+                "Wi-Fi가 꺼져 있습니다\n'Wi-Fi 켜기'를 누르면 설정 패널이 열립니다",
+                style = Glass.BodySmall.copy(textAlign = TextAlign.Center),
+            )
+        } else if (active?.isConfigured == true) {
             BasicText("네트워크: ${active.ssid}", style = Glass.Body)
         } else {
             BasicText(
@@ -65,7 +73,7 @@ fun WifiHomePage(
         }
         when (state) {
             is WifiState.Failed -> BasicText(state.message, style = Glass.BodySmall.copy(textAlign = TextAlign.Center), maxLines = 3)
-            else -> BasicText("◀ ▶ 선택 · Enter 확인", style = Glass.Caption)
+            else -> BasicText(autoNote ?: "◀ ▶ 선택 · Enter 확인", style = Glass.Caption)
         }
         // 출처: Rokid Nexus 문서(제3자). 글래스에서 직접 확인한 사실은 아니다.
         BasicText(

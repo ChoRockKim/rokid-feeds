@@ -16,10 +16,15 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.delay
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import dev.chorock.newsfeed.nav.AUTO_RETRY_FIRST_DELAY_MS
+import dev.chorock.newsfeed.nav.AUTO_RETRY_INTERVAL_MS
+import dev.chorock.newsfeed.nav.AUTO_RETRY_MAX
+import dev.chorock.newsfeed.nav.shouldAutoRetry
 import dev.chorock.newsfeed.nav.FormItem
 import dev.chorock.newsfeed.nav.NavKey
 import dev.chorock.newsfeed.nav.PickerItem
@@ -50,6 +55,7 @@ sealed interface ScanState {
 }
 
 private const val HOME_ITEM_COUNT = 2
+private const val WIFI_STATE_POLL_MS = 1_500L
 
 private val WifiFlowStateSaver = listSaver<WifiFlowState, Int>(
     save = { listOf(it.page.ordinal, it.homeSelected, it.pickerSelected, it.formSelected) },
@@ -67,9 +73,23 @@ fun WifiFlowScreen(
     scanner: WifiScanner,
     state: WifiState,
     onConnect: (WifiConfig, Boolean) -> Unit,
+    isWifiEnabled: () -> Boolean,
+    onEnableWifi: () -> Unit,
     onOpenSystemSettings: () -> Unit,
     onExit: () -> Unit,
 ) {
+    // Wi-Fi 라디오 상태. 사용자가 시스템 패널에서 켜고 돌아오면 바로 반영하려고 가끔 읽는다.
+    var wifiOn by remember { mutableStateOf(isWifiEnabled()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            wifiOn = isWifiEnabled()
+            delay(WIFI_STATE_POLL_MS)
+        }
+    }
+    // 저장된 네트워크로 연결을 자동으로 다시 시도한 횟수. Wi-Fi를 껐다 켜거나 버튼을 누르면 0으로 돌아간다.
+    var autoAttempts by remember { mutableIntStateOf(0) }
+    LaunchedEffect(wifiOn) { if (!wifiOn) autoAttempts = 0 }
+
     var flow by rememberSaveable(stateSaver = WifiFlowStateSaver) { mutableStateOf(WifiFlowState()) }
     var networks by remember { mutableStateOf<List<WifiNetwork>>(emptyList()) }
     var scan by remember { mutableStateOf<ScanState>(ScanState.Idle) }
@@ -138,6 +158,16 @@ fun WifiFlowScreen(
         if (target === rootFocus) keyboard?.hide() else keyboard?.show()
     }
 
+    val hasSaved = active?.isConfigured == true
+    LaunchedEffect(wifiOn, hasSaved, flow.page, state, autoAttempts) {
+        if (!shouldAutoRetry(wifiOn, hasSaved, flow.page == WifiPage.Home, state is WifiState.Connecting, autoAttempts)) {
+            return@LaunchedEffect
+        }
+        delay(if (autoAttempts == 0) AUTO_RETRY_FIRST_DELAY_MS else AUTO_RETRY_INTERVAL_MS)
+        autoAttempts++
+        active?.let { onConnect(it, false) }
+    }
+
     fun submit() {
         val error = formError(manual, ssid, security, password)
         formError = error
@@ -159,7 +189,10 @@ fun WifiFlowScreen(
     fun activate(index: Int) {
         when (flow.page) {
             WifiPage.Home -> when (index) {
-                0 -> active?.takeIf { it.isConfigured }?.let { onConnect(it, false) }
+                0 -> if (!wifiOn) onEnableWifi() else {
+                    autoAttempts = 0
+                    active?.takeIf { it.isConfigured }?.let { onConnect(it, false) }
+                }
                 else -> { notice = null; flow = WifiFlow.open(flow, WifiPage.Picker) }
             }
             WifiPage.Picker -> when (val item = pickerItems.getOrNull(index)) {
@@ -227,7 +260,11 @@ fun WifiFlowScreen(
             .focusable(),
     ) {
         when (flow.page) {
-            WifiPage.Home -> WifiHomePage(active, state, flow.homeSelected, onClick = ::tap, onFocused = ::focused)
+            WifiPage.Home -> WifiHomePage(
+                active, state, flow.homeSelected, wifiOn,
+                autoNote = if (wifiOn && hasSaved && autoAttempts in 1 until AUTO_RETRY_MAX) "자동 재시도 중 ($autoAttempts/$AUTO_RETRY_MAX)" else null,
+                onClick = ::tap, onFocused = ::focused,
+            )
             WifiPage.Picker -> WifiPickerPage(pickerItems, flow.pickerSelected, scan, state, notice, onClick = ::tap, onFocused = ::focused)
             WifiPage.Form -> WifiFormPage(
                 title = if (manual) "직접 입력" else ssid,
