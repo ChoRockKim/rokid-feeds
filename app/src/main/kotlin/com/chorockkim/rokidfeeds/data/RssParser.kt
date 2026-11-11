@@ -1,5 +1,6 @@
 package com.chorockkim.rokidfeeds.data
 
+import com.chorockkim.rokidfeeds.util.dropTruncatedTail
 import com.chorockkim.rokidfeeds.util.htmlToText
 import java.time.OffsetDateTime
 import java.time.ZonedDateTime
@@ -27,7 +28,7 @@ object RssParser {
         return Article(
             title = title,
             link = link,
-            summary = htmlToText((tag(item, "description") ?: tag(item, "content") ?: tag(item, "summary")).orEmpty()),
+            summary = dropTruncatedTail(htmlToText((tag(item, "description") ?: tag(item, "content") ?: tag(item, "summary")).orEmpty())),
             author = (tag(item, "dc:creator") ?: tag(item, "name") ?: tag(item, "author"))?.let(::htmlToText)?.ifBlank { null },
             publishedAt = parseDate(tag(item, "pubDate") ?: tag(item, "dc:date") ?: tag(item, "published") ?: tag(item, "updated")),
         )

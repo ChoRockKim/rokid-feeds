@@ -20,7 +20,7 @@ private val SENTENCE_END = charArrayOf('.', '?', '!', '…', '。')
 
 /**
  * [text]를 쪽으로 나눈다. 모든 쪽의 길이는 첫 쪽 [firstBudget], 나머지 [restBudget] 이하다.
- * 자를 곳은 문단(`\n\n`) → 문장 끝 → 공백 순으로 찾는다. 문단·문장 끝은 예산의 절반 이후에서만 쓴다(너무 짧은 쪽을 피함).
+ * 자를 곳은 문단(`\n\n`) → 줄바꿈(목록 항목 경계) → 문장 끝 → 공백 순으로 찾는다. 문단·문장 끝은 예산의 절반 이후에서만 쓴다(너무 짧은 쪽을 피함).
  * 공백이 전혀 없으면 예산 위치에서 강제로 자른다. 단어 중간은 공백이 있는 한 자르지 않는다.
  */
 fun paginate(text: String, firstBudget: Int, restBudget: Int): List<String> {
@@ -48,6 +48,8 @@ private fun findCut(text: String, budget: Int): Int {
     val minimum = budget / 2
 
     window.lastIndexOf("\n\n").let { if (it in minimum..budget) return it }
+    // 목록 항목(GeekNews 요약)은 한 줄에 하나라 줄바꿈이 항목 경계다. 항목 중간보다 경계에서 넘긴다.
+    window.lastIndexOf('\n').let { if (it in minimum..budget) return it }
     for (i in budget - 1 downTo minimum) {
         if (window[i] in SENTENCE_END && (i + 1 >= window.length || window[i + 1].isWhitespace())) return i + 1
     }

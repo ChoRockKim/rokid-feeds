@@ -127,7 +127,15 @@ class RssParserTest {
         assertEquals("JVM 시작 시간 줄이기", a.title)
         assertEquals("https://news.hada.io/topic?id=1&utm=x", a.link)
         assertEquals("neo", a.author)
-        assertEquals("첫째임\n둘째임", a.summary)
+        assertEquals("· 첫째임\n· 둘째임", a.summary)
         assertEquals(java.time.OffsetDateTime.parse("2026-11-04T11:30:57+09:00").toEpochSecond(), a.publishedAt)
+    }
+
+    @Test
+    fun `GeekNews처럼 길이로 잘린 요약은 끊긴 마지막 항목을 버리고 계속 표시를 붙인다`() {
+        // 2026-11-11 실제 피드 모양: 약 500자에서 항목 중간("현재 Appl")을 자르고 목록 밖에 …를 붙인다.
+        val xml = """<feed><entry><title>t</title><link rel='alternate' href='https://news.hada.io/topic?id=1'/>
+            <content type='html'><![CDATA[<div><ul><li>첫 항목임</li><li><strong>둘째</strong> 항목임</li><li>현재 Appl</li></ul></div>…]]></content></entry></feed>"""
+        assertEquals("· 첫 항목임\n· 둘째 항목임\n… 원문에서 계속", RssParser.parse(xml).single().summary)
     }
 }

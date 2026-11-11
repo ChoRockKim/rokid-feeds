@@ -145,4 +145,10 @@ class PagerTest {
         assertEquals(listOf(true), pages.take(1).map { it.showHeader })
         assertTrue(pages.drop(1).none { it.showHeader })
     }
+
+    @Test
+    fun `목록 항목 경계(줄바꿈)를 문장 끝·공백보다 먼저 쓴다`() {
+        val text = "· 첫 항목은 꽤 길게 이어지는 설명임\n· 둘째 항목도 길게 이어지는 설명이며 여기서 넘친다"
+        assertEquals("· 첫 항목은 꽤 길게 이어지는 설명임", paginate(text, 40, 40).first())
+    }
 }
