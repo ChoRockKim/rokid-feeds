@@ -66,6 +66,12 @@ class FeedSnapshotTest {
     fun loading() = shot { LoadingView() }
 
     @Test
+    fun battery_low() = shot(status.copy(battery = 9)) { LoadingView() }
+
+    @Test
+    fun battery_charging() = shot(status.copy(battery = 47, charging = true)) { LoadingView() }
+
+    @Test
     fun offline() = shot(status.copy(notice = "Wi-Fi 켜는 중…")) {
         ErrorView("인터넷 연결 없음", "Wi-Fi가 연결되면 자동으로 다시 불러옵니다", hint = "뒤로: 종료")
     }

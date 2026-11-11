@@ -13,6 +13,7 @@ import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
 import android.util.DisplayMetrics
+import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
@@ -32,7 +33,10 @@ import com.chorockkim.rokidfeeds.nav.NavKey
 import com.chorockkim.rokidfeeds.net.WifiEnabler
 import com.chorockkim.rokidfeeds.ui.GlassScreen
 import com.chorockkim.rokidfeeds.ui.Glass
-import com.chorockkim.rokidfeeds.ui.NewsApp
+import com.chorockkim.rokidfeeds.nav.Screen
+import com.chorockkim.rokidfeeds.threads.ThreadsSession
+import com.chorockkim.rokidfeeds.threads.ThreadsWeb
+import com.chorockkim.rokidfeeds.ui.AppRoot
 import com.chorockkim.rokidfeeds.ui.StatusBar
 import com.chorockkim.rokidfeeds.update.InstallResultReceiver
 import com.chorockkim.rokidfeeds.update.Updater
@@ -63,6 +67,16 @@ class MainActivity : ComponentActivity() {
     private var clock by mutableStateOf("")
     private var battery by mutableStateOf<Int?>(null)
     private var charging by mutableStateOf(false)
+
+    /** 지금 화면(로그인 화면이면 키를 웹으로 넘긴다). */
+    private var screen = Screen.Menu
+    private var threadsLoggedIn by mutableStateOf(ThreadsWeb.isLoggedIn())
+    private var loginFocus by mutableStateOf<String?>(null)
+    private var threadsWeb: ThreadsWeb? = null
+    /** Threads를 처음 고를 때 만든다(WebView). 화면은 이 값이 생기면 그린다. */
+    private var threadsSession by mutableStateOf<ThreadsSession?>(null)
+    private lateinit var root: FrameLayout
+    private lateinit var ringTarget: RingTarget
 
     private val wifiEnabler by lazy { WifiEnabler(this) { status -> runOnUiThread { wifiStatus = status } } }
 
@@ -103,12 +117,24 @@ class MainActivity : ComponentActivity() {
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
             setContent {
                 GlassScreen(StatusBar(updateText, notice(), clock, battery, charging)) {
-                    NewsApp(keys = keyFlow, online = online, onExit = { finish() }, api = api)
+                    AppRoot(
+                        keys = keyFlow,
+                        online = online,
+                        api = api,
+                        threads = threadsSession,
+                        threadsLoggedIn = threadsLoggedIn,
+                        onScreen = ::onScreen,
+                        onLogout = ::logout,
+                        onExit = { finish() },
+                        loginFocus = loginFocus,
+                    )
                 }
             }
         }
-        val ringTarget = RingTarget(this) { action -> action.toNavKey()?.let(keys::trySend) }
-        val root = FrameLayout(this).apply {
+        ringTarget = RingTarget(this) { action ->
+            if (screen == Screen.ThreadsLogin) loginAction(action) else action.toNavKey()?.let(keys::trySend)
+        }
+        root = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
             addView(compose, FrameLayout.LayoutParams(-1, -1))
             addView(ringTarget, FrameLayout.LayoutParams(-1, -1))
@@ -158,6 +184,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        threadsWeb?.destroy()
         networkCallback?.let { getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(it) }
         super.onDestroy()
     }
@@ -167,11 +194,91 @@ class MainActivity : ComponentActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         // 뒤로는 시스템 Back으로 받아 onBackPressedDispatcher가 넘긴다.
         if (event.keyCode == KeyEvent.KEYCODE_BACK) return super.dispatchKeyEvent(event)
+        if (screen == Screen.ThreadsLogin) return dispatchLoginKey(event)
         val action = input.map(event)
         if (action == GlassesInput.Action.DUPLICATE) return true
         val key = action.toNavKey() ?: return super.dispatchKeyEvent(event)
         keys.trySend(key)
         return true
+    }
+
+    /**
+     * 로그인 화면: 쓸기(방향 키·183/184·링) = 입력칸·버튼 이동, 탭(ENTER·DPAD 가운데·202·링) = 누르기.
+     * 그 밖의 키(글자·스페이스 등 폰 키보드가 보내는 것)는 포커스된 웹 입력칸으로 그대로 보낸다.
+     */
+    private fun dispatchLoginKey(event: KeyEvent): Boolean {
+        if (threadsWeb == null || event.keyCode !in LOGIN_NAV_KEYS) return super.dispatchKeyEvent(event)
+        loginAction(input.map(event))
+        return true
+    }
+
+    private fun loginAction(action: GlassesInput.Action) {
+        val web = threadsWeb ?: return
+        when (action) {
+            GlassesInput.Action.PREVIOUS, GlassesInput.Action.UP -> web.focus(-1) { loginFocus = it }
+            GlassesInput.Action.NEXT, GlassesInput.Action.DOWN -> web.focus(1) { loginFocus = it }
+            GlassesInput.Action.SELECT -> web.click()
+            GlassesInput.Action.BACK -> keys.trySend(NavKey.Back)
+            else -> Unit
+        }
+    }
+
+    // endregion
+
+    // region Threads (WebView는 처음 Threads를 고를 때 만든다)
+
+    private fun threads(): ThreadsSession {
+        threadsSession?.let { return it }
+        lateinit var session: ThreadsSession
+        val web = ThreadsWeb(this) { source, url, json -> session.onJson(source, url, json) }
+        session = ThreadsSession(web, lifecycleScope)
+        // 띠 안(안내 줄 위)에 둔다. 보통은 Compose 화면 **뒤**에 둬서(검정으로 가려짐) 페이지가 보이는 것처럼 계속 돌게 하고
+        // (숨김 상태면 무한 스크롤이 멈출 수 있다), 로그인할 때만 앞으로 꺼낸다(translationZ).
+        val density = resources.displayMetrics.density
+        fun bandParams() = FrameLayout.LayoutParams(
+            ((Glass.WIDTH_DP - 2) * density).toInt(),
+            ((Glass.HEIGHT_DP - LOGIN_HINT_DP) * density).toInt(),
+            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
+        ).apply { bottomMargin = (LOGIN_HINT_DP * density).toInt() }
+        listOf(web.feed, web.post).forEach { view ->
+            view.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            root.addView(view, 0, bandParams())
+        }
+        threadsWeb = web
+        threadsSession = session
+        return session
+    }
+
+    private fun onScreen(next: Screen) {
+        val previous = screen
+        screen = next
+        val web = threadsWeb
+        val threadsScreen = next == Screen.Threads || next == Screen.ThreadsLogin
+        if (threadsScreen) threads()
+        threadsWeb?.let { w ->
+            // Threads 밖에서는 WebView를 쉬게 한다(배터리).
+            listOf(w.feed, w.post).forEach { if (threadsScreen) it.onResume() else it.onPause() }
+        }
+        if (next == Screen.ThreadsLogin) {
+            val feed = threadsWeb!!.feed
+            loginFocus = null
+            threadsWeb!!.openLogin()
+            feed.translationZ = LOGIN_Z
+            feed.requestFocus() // 폰 키보드 글자가 웹 입력칸으로 가도록
+        } else if (web != null) {
+            web.feed.translationZ = 0f
+            ringTarget.requestFocus()
+        }
+        if (previous == Screen.ThreadsLogin && next != Screen.ThreadsLogin) {
+            threadsLoggedIn = ThreadsWeb.isLoggedIn()
+            threadsSession?.afterLogin()
+        }
+    }
+
+    private fun logout() {
+        val session = threadsSession
+        if (session != null) session.logout() else ThreadsWeb.logout {}
+        threadsLoggedIn = false
     }
 
     // endregion
@@ -279,5 +386,15 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val CRASH_NOTICE_MS = 15_000L
+        /** 로그인 화면에서 웹 아래에 남겨 두는 안내 줄 높이. */
+        const val LOGIN_HINT_DP = 30
+        /** 로그인 화면에서 웹을 Compose 화면 위로 꺼내는 높이. */
+        const val LOGIN_Z = 10f
+        val LOGIN_NAV_KEYS = setOf(
+            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER,
+            GlassesInput.KEYCODE_ROKID_NEXT, GlassesInput.KEYCODE_ROKID_PREVIOUS, GlassesInput.KEYCODE_ROKID_DOUBLE_TAP,
+            KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_MEDIA_PREVIOUS, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+        )
     }
 }

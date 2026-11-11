@@ -1,12 +1,23 @@
 # Rokid Feeds
 
-Rokid 안경용 뉴스 앱입니다. 연합뉴스·동아일보·경향신문 RSS와 GeekNews(Atom)를 **하나의 통합 목록**(소스별 10개씩, 총 40개, 소스를 번갈아 끼워 넣음)으로 보여 주고, 기사를 열면 제목·언론사·기자·시간·본문·링크를 쪽 단위로 보여 줍니다.
+Rokid 안경용 읽기 앱입니다. 메인 메뉴에서 **뉴스**와 **Threads**를 고릅니다.
+
+- **뉴스**: 연합뉴스·동아일보·경향신문 RSS와 GeekNews(Atom)를 **하나의 통합 목록**(소스별 10개씩, 총 40개, 소스를 번갈아 끼워 넣음)으로 보여 주고, 기사를 열면 제목·언론사·기자·시간·본문·링크를 쪽 단위로 보여 줍니다.
+- **Threads**: threads.com의 글·댓글·답글·사진을 Threads 앱 모양(아바타·이름·아이콘 줄, 상자 대신 구분선)으로 보여 줍니다. 아래 [Threads](#threads)를 보세요.
 
 화면 전체가 아래쪽 **480 × 282 띠** 안에 그려지고, 띠 위쪽은 검은색이라 안경에서는 투명하게 보입니다. rokid-lens, rokid-youtube, rokid-conversate, rokid-glass-ios-navigation과 같은 방식입니다(화면 크기·색·입력·Wi-Fi·OTA).
 
 ## 화면
 
-| 통합 목록 | 상세 1쪽 | 상세 2쪽 (본문 받는 중) |
+| 메인 메뉴 | Threads 목록 | Threads 글 | Threads 댓글 (고른 댓글 → 탭하면 답글) |
+|---|---|---|---|
+| ![menu](app/src/test/snapshots/images/com.chorockkim.rokidfeeds.ui_ThreadsSnapshotTest_menu.png) | ![threads](app/src/test/snapshots/images/com.chorockkim.rokidfeeds.ui_ThreadsSnapshotTest_threads_feed.png) | ![post](app/src/test/snapshots/images/com.chorockkim.rokidfeeds.ui_ThreadsSnapshotTest_threads_detail_text.png) | ![replies](app/src/test/snapshots/images/com.chorockkim.rokidfeeds.ui_ThreadsSnapshotTest_threads_detail_reply.png) |
+
+| Threads 사진 (녹색 단색) | 배터리: 충전 중 | 배터리: 낮음 | 앱 아이콘 |
+|---|---|---|---|
+| ![photo](app/src/test/snapshots/images/com.chorockkim.rokidfeeds.ui_ThreadsSnapshotTest_threads_detail_photo.png) | ![charging](app/src/test/snapshots/images/com.chorockkim.rokidfeeds.ui_FeedSnapshotTest_battery_charging.png) | ![low](app/src/test/snapshots/images/com.chorockkim.rokidfeeds.ui_FeedSnapshotTest_battery_low.png) | ![icon](app/src/test/snapshots/images/com.chorockkim.rokidfeeds.ui_IconSnapshotTest_icon.png) |
+
+| 뉴스 통합 목록 | 상세 1쪽 | 상세 2쪽 (본문 받는 중) |
 |---|---|---|
 | ![feed](app/src/test/snapshots/images/com.chorockkim.rokidfeeds.ui_FeedSnapshotTest_feed.png) | ![detail](app/src/test/snapshots/images/com.chorockkim.rokidfeeds.ui_FeedSnapshotTest_detail_firstPage.png) | ![detail2](app/src/test/snapshots/images/com.chorockkim.rokidfeeds.ui_FeedSnapshotTest_detail_secondPage_loadingBody.png) |
 
@@ -14,22 +25,35 @@ Rokid 안경용 뉴스 앱입니다. 연합뉴스·동아일보·경향신문 RS
 |---|---|---|
 | ![offline](app/src/test/snapshots/images/com.chorockkim.rokidfeeds.ui_FeedSnapshotTest_offline.png) | ![error](app/src/test/snapshots/images/com.chorockkim.rokidfeeds.ui_FeedSnapshotTest_error_withUpdatePill.png) | ![partial](app/src/test/snapshots/images/com.chorockkim.rokidfeeds.ui_FeedSnapshotTest_feed_partialFailure.png) |
 
-위 그림은 [Paparazzi](https://github.com/cashapp/paparazzi)가 실제 Compose 코드로 그린 480×640 화면입니다. 기사는 예시 문구입니다.
+위 그림은 [Paparazzi](https://github.com/cashapp/paparazzi)가 실제 Compose 코드로 그린 480×640 화면입니다. 기사·글·사진은 예시입니다(사진은 색 그라데이션으로 녹색 단색 필터를 보여 줌).
 
 - 띠: 여백 18, 강조 `#00ff66`, 보조 `#4da86c`, 얇은 녹색 윤곽선. 밝은 면은 앞을 가리므로 만들지 않습니다.
-- 띠 바로 위: 왼쪽 업데이트, 가운데 Wi-Fi·인터넷 상태(또는 지난번 앱이 튕긴 이유), 오른쪽 시각·배터리.
+- 띠 바로 위: 왼쪽 업데이트, 가운데 Wi-Fi·인터넷 상태(또는 지난번 앱이 튕긴 이유), 오른쪽 시각·배터리 아이콘(잔량만큼 채움, 충전 중이면 번개, 15% 이하면 숫자 굵게).
 
 ## 조작
 
-| 동작 | 목록 | 상세 | 불러오는 중 / 오류 |
-|---|---|---|---|
-| 앞/뒤로 쓸기 · 링 앞/뒤 | 다음/이전 기사 (**양끝에서 순환**) | 다음/이전 쪽 (**끝에서 멈춤**) | — |
-| 탭 · 링 탭 | 기사 열기 | 다음 쪽 | 다시 시도 |
-| 뒤로 · 링 두 번 탭 | 앱 종료 | 목록으로 (선택 위치 유지) | 앱 종료 |
+| 동작 | 메인 메뉴 | 목록 (뉴스·Threads) | 뉴스 상세 | Threads 글 |
+|---|---|---|---|---|
+| 앞/뒤로 쓸기 · 링 앞/뒤 | 다음/이전 줄 (순환) | 다음/이전 글 (**양끝에서 순환**) | 다음/이전 쪽 (**끝에서 멈춤**) | 다음/이전 쪽, 댓글 쪽에서는 댓글을 하나씩 고름 |
+| 탭 · 링 탭 | 고르기 | 열기 (오류 화면에서는 다시 시도) | 다음 쪽 | 다음 쪽, 고른 댓글이면 **그 댓글을 열어 답글 보기** |
+| 뒤로 · 링 두 번 탭 | 앱 종료 | 메인 메뉴 | 목록 (선택 위치 유지) | 이전 글(댓글을 열기 전) → 목록 |
 
 - **안경 터치패드:** rokid-lens·rokid-youtube와 같은 키 매핑(`input/GlassesInput.kt`, RokidPipe에서 실기 확인된 것). 쓸기는 DPAD 좌우·183/184, 탭은 ENTER·202, 세로 쓸기(DPAD 위/아래)도 이전/다음. 한 번 쓸기에 두 번 들어오는 이벤트는 240ms 디바운스로 거릅니다.
 - **R08 링 ([R08 Access Bridge](https://github.com/Anezium/R08-Access-Bridge)):** 띠 위에 링 전용 노드(`input/RingTarget.kt`) 하나만 노출해서, 브리지가 보내는 스크롤 앞/뒤와 클릭을 위 동작으로 바꿉니다. 브리지가 꺼져 있을 때 들어오는 링 미디어 키도 같은 동작입니다.
 - 내비게이션 규칙 전체는 Android 없는 순수 상태머신(`nav/Navigator.kt`)이며 "어떤 키 순서로도 뒤로를 두 번 이내로 누르면 종료에 닿음"을 테스트로 검증합니다.
+
+## Threads
+
+공식 Threads API로는 홈 피드를 가져올 수 없고 남의 글은 Meta 앱 심사가 필요해서, **threads.com 웹을 앱 안의 보이지 않는 WebView로 열고** 페이지가 받는 데이터에서 글을 꺼내 우리 화면으로 그립니다.
+
+- **데이터**: `assets/threads_bridge.js`를 페이지에 넣어, 페이지가 받는 GraphQL 응답과 페이지에 박힌 JSON(`script[data-sjs]`) 중 글 데이터가 든 것만 앱으로 넘깁니다. `threads/ThreadsParser.kt`가 화면 HTML이 아니라 데이터 필드(`thread_items`, `caption.text`, `user.username`, `image_versions2`, `direct_replies`, `self_thread`)를 읽습니다(2026-11-11 확인한 모양). 구조가 바뀌면 빈 목록이 나올 뿐 앱이 죽지는 않습니다.
+- **목록**: 홈(`threads.com/`)의 글. 목록 끝 세 줄 안으로 오면 페이지를 한 번 더 내려 다음 글을 받습니다(사람이 스크롤하는 만큼만).
+- **글**: 그 글 페이지를 열어 본문·작성자가 이어 쓴 글·사진·댓글을 받습니다. 댓글 쪽에서 댓글을 골라 탭하면 그 댓글 페이지를 열어 **답글**을 보여 주고, 뒤로 하면 원래 글로 돌아갑니다(한 번 받은 글은 기억).
+- **사진**: 띠 폭에 맞는 크기를 골라 받아 흑백 밝기를 녹색으로 그립니다. 이모지는 컬러로 그려지므로 글에서 뺍니다.
+- **로그인**: 메인 메뉴 → "Threads 로그인"이면 WebView를 띠 안에 보여 줍니다. 쓸기 = 입력칸·버튼 이동(녹색 테두리), 탭 = 누르기, **글자는 폰 키보드로** 포커스된 칸에 입력합니다. 쿠키는 WebView가 보관하고 앱은 비밀번호를 보거나 저장하지 않습니다. 로그인하지 않으면 공개 글 일부만 보입니다. 로그인돼 있으면 같은 줄이 "로그아웃"이 됩니다.
+- **범위**: WebView는 threads.com·instagram.com(로그인 단계)만 엽니다. 글 데이터는 threads 주소에서 온 것만 받습니다.
+
+**주의**: 웹 데이터를 꺼내 쓰는 방식이라 Meta 약관상 회색 지대이고(개인 열람용 가정), threads.com 구조가 바뀌면 고쳐야 합니다.
 
 ## 인터넷과 Wi-Fi
 
@@ -89,7 +113,9 @@ app/src/main/kotlin/com/chorockkim/rokidfeeds/
 ├── input/                 # GlassesInput(터치패드 키), RingTarget(R08 링), NavKeys(→ NavKey 매핑 한 곳)
 ├── nav/Navigator.kt       # 순수 내비게이션 상태머신
 ├── net/WifiEnabler.kt     # Wi-Fi 켜 두기(도우미 앱), 상태 문구
-├── ui/                    # GlassScreen(띠 + 상태 알약), NewsApp(상태), FeedScreen, DetailScreen, LoadState, Theme
+├── nav/AppNav.kt          # 메인 메뉴 상태머신, nav/ThreadDetailNav.kt: Threads 글 안 이동(댓글 고르기·열기)
+├── threads/               # ThreadsWeb(숨은 WebView·로그인), ThreadsParser(JSON → 글), ThreadsSession(상태), ThreadPages, ThreadImages
+├── ui/                    # GlassScreen(띠 + 상태 알약·배터리), AppRoot(메뉴 → 화면), NewsApp, ThreadsApp, Threads 화면(ThreadsLook), Theme
 ├── update/                # Updater(확인·받기·검증·설치), Release, InstallResultReceiver
 └── util/                  # Pager, HtmlText, TimeAgo
 ```
@@ -107,7 +133,8 @@ app/src/main/kotlin/com/chorockkim/rokidfeeds/
 
 ## 확인한 것과 안 한 것
 
-- **확인함 (클라우드 빌드, 2026-11-11):** `:app:testDebugUnitTest` 103개 통과, `:app:assembleDebug` 성공, 화면 스냅샷 7장.
+- **확인함 (클라우드 빌드, 2026-11-11):** `:app:testDebugUnitTest` 137개 통과, `:app:assembleDebug` 성공, 화면 스냅샷 17장.
+- **Threads (클라우드, 로그인하지 않은 Chromium, 2026-11-11):** 프로필·홈·글 페이지에서 `threads_bridge.js`가 글 JSON을 넘기고, 파서가 목록(묶음·사진·댓글 수)·글(본문·이어 쓴 글 4개·댓글 10개)·댓글의 답글(9개)을 꺼내는 것, 사진 주소를 앱의 HTTP로 받을 수 있는 것, 로그인 페이지에서 입력칸 이동 도우미가 동작하는 것. **로그인한 상태와 안드로이드 WebView(안경)에서는 미확인**입니다(계정이 없어 로그인 후 피드·더 많은 댓글은 보지 못함).
 - **이전 버전에서 에뮬레이터로 확인 (2026-10-19 ~ 11-04):** 실제 피드 4곳 로딩·병합, 본문 추출로 쪽 수 증가(연합뉴스 1→4쪽 등), 목록 순환·상세 쪽 멈춤·뒤로 두 번 종료. 이번 재구성 뒤 에뮬레이터로 다시 보지는 않았습니다.
 - **안경에서 확인해야 함:** 터치패드·R08 링 조작, 띠 크기(밀도 조정), Wi-Fi 도우미로 켜기, OTA 무확인 설치, 실제 글꼴에서 쪽 넘침, 배터리.
 - 다른 Rokid 앱의 실기 사실(키 매핑, Wi-Fi 도우미, 무확인 OTA)은 그 앱들에서 확인된 것이며 이 앱에서는 아직 실기 미확인입니다.

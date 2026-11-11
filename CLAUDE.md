@@ -1,6 +1,6 @@
 # rokid-feeds
 
-한국어 뉴스 RSS(연합뉴스·동아일보·경향신문)와 GeekNews(Atom)를 **하나의 통합 목록**으로 합쳐 목록→상세로 보여 주는 Rokid 안경 앱.
+Rokid 안경 읽기 앱. 메인 메뉴에서 **뉴스**(연합뉴스·동아일보·경향신문 RSS와 GeekNews를 하나의 통합 목록으로)와 **Threads**(threads.com 글·댓글·답글·사진)를 고른다.
 화면·입력·네트워크·배포는 다른 Rokid 앱(rokid-lens, rokid-youtube, rokid-conversate, rokid-glass-ios-navigation)과 같은 규칙을 따른다.
 공통 사실·방법은 `ChoRockKim/rokid-conversate`의 `docs/rokid-dev-notes.md`에 있다.
 
@@ -25,7 +25,15 @@
 - 터치패드 키 → `input/GlassesInput.kt`(rokid-lens 그대로): 쓸기 = DPAD 좌우·183/184, 탭 = ENTER·202, 세로 쓸기 = DPAD 위/아래, 링 미디어 키, 방향 키 240ms 디바운스·`repeatCount > 0` 무시. Back은 시스템 Back으로.
 - R08 링 → `input/RingTarget.kt`: 띠 위 투명 View 하나만 접근성 노드로 노출하고(Compose 쪽은 `NO_HIDE_DESCENDANTS`) SCROLL_FORWARD/BACKWARD/CLICK을 받는다. 행마다 포커스를 두지 않는다.
 - 동작 → `NavKey` 매핑은 `input/NavKeys.kt` 한 곳, 규칙은 `nav/Navigator.kt`(Android 없는 순수 상태머신)에만 둔다. 규칙을 바꾸면 `NavigatorTest`를 먼저 고친다. 화면(`FeedScreen`, `DetailScreen`)은 상태를 보여 주기만 한다.
-- 목록은 이전/다음이 양끝에서 순환, 상세는 쪽 이동이며 끝에서 멈춘다. 탭 = 열기/다음 쪽, 뒤로 = 목록/종료.
+- 메인 메뉴는 `nav/AppNav.kt`(순수). 목록은 이전/다음이 양끝에서 순환, 상세는 쪽 이동이며 끝에서 멈춘다. 탭 = 열기/다음 쪽, 뒤로 = 목록 → 메뉴 → 종료.
+- Threads 글 안 이동은 `nav/ThreadDetailNav.kt`(순수): 댓글 쪽에서는 쓸기로 댓글을 하나씩 고르고 탭하면 그 댓글을 열어 답글을 본다(쌓임, 뒤로 = 이전 글).
+
+## Threads
+- 공식 API로는 홈 피드가 없어서 threads.com을 보이지 않는 WebView(`threads/ThreadsWeb.kt`)로 열고, `assets/threads_bridge.js`가 페이지가 받는 JSON(fetch·XHR·`script[data-sjs]`) 중 글 데이터만 앱으로 넘긴다. 파싱은 `threads/ThreadsParser.kt`(순수, 데이터 필드 기준, HTML 구조를 보지 않음). 필드를 바꿀 때는 실제 응답 모양을 먼저 확인하고 `ThreadsParserTest` 예시를 고친다. 실제 글 내용을 저장소에 넣지 않는다.
+- 사용자가 보는 만큼만 연다(목록 끝 근처에서 한 번 더 스크롤, 연 글 페이지 하나). 백그라운드 수집을 하지 않는다.
+- 로그인은 WebView를 띠 안에 보여 주고 쓸기 = 입력칸 이동, 탭 = 누르기, 글자는 폰 키보드. 비밀번호를 앱이 보거나 저장하지 않는다(쿠키는 WebView).
+- 화면은 Threads 앱 모양(`ui/ThreadsLook.kt`): 아바타·굵은 이름·오른쪽 시각·선으로 그린 아이콘 줄·구분선. 사진·아바타는 녹색 단색 필터, 이모지는 뺀다(`util/Emoji.kt`).
+- 클라우드에서 확인한 것은 로그인하지 않은 Chromium뿐이다. 로그인 상태·안드로이드 WebView는 실기 미확인.
 
 ## 네트워크
 - Wi-Fi 고르기·연결은 **시스템에 맡긴다**(저장된 iPhone 핫스팟에 자동 연결). 앱이 네트워크를 고르면(`WifiNetworkSpecifier`) 시스템 확인 창이 뜨므로 쓰지 않는다.

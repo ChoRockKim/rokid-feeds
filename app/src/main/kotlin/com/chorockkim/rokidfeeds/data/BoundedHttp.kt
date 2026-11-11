@@ -20,7 +20,11 @@ class BoundedHttp(
     private val userAgent: String = "news-feed/0.1 (Android)",
 ) {
     /** 본문을 UTF-8 문자열로 돌려준다. 실패는 예외로 올린다. 리다이렉트는 최대 [maxRedirects]번만 따라간다. */
-    suspend fun fetch(url: String): String = withContext(Dispatchers.IO) {
+    // 확인한 세 피드는 모두 UTF-8이다.
+    suspend fun fetch(url: String): String = fetchBytes(url).toString(Charsets.UTF_8)
+
+    /** 본문을 바이트로 돌려준다(Threads 사진). 상한은 [fetch]와 같다. */
+    suspend fun fetchBytes(url: String): ByteArray = withContext(Dispatchers.IO) {
         var current = url
         for (hop in 0..maxRedirects) {
             val connection = open(current)
@@ -32,8 +36,7 @@ class BoundedHttp(
                     continue
                 }
                 check(status == 200) { "HTTP $status: $current" }
-                // 확인한 세 피드는 모두 UTF-8이다.
-                return@withContext connection.inputStream.use { readBounded(it) }.toString(Charsets.UTF_8)
+                return@withContext connection.inputStream.use { readBounded(it) }
             } finally {
                 connection.disconnect()
             }

@@ -73,6 +73,8 @@ dependencies {
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.activity.compose)
     implementation(libs.kotlinx.coroutines.android)
+    // Threads 화면: 숨은 WebView에 데이터 전달 스크립트를 문서 시작 시 넣고, 로그인 화면은 어둡게 그린다.
+    implementation(libs.androidx.webkit)
 
     testImplementation(libs.junit)
     testImplementation(libs.org.json)

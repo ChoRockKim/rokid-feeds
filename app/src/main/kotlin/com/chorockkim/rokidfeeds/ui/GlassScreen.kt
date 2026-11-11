@@ -1,5 +1,6 @@
 package com.chorockkim.rokidfeeds.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +17,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 
 /** 띠 위 상태 줄에 띄울 것. 비어 있으면 그 칸은 그리지 않는다. */
 data class StatusBar(
@@ -69,8 +75,11 @@ private fun StatusRow(status: StatusBar, modifier: Modifier) {
         ) {
             if (status.clock.isNotEmpty()) BasicText(status.clock, style = Glass.Label)
             status.battery?.let { level ->
-                // 이모지(⚡)는 컬러로 그려져 단색 화면에 맞지 않는다.
-                BasicText((if (status.charging) "충전 " else "") + "$level%", style = Glass.BodySmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (status.charging) ChargingBolt()
+                    BatteryIcon(level, status.charging)
+                    BasicText("$level%", style = if (status.charging || level > LOW_BATTERY) Glass.BodySmall else Glass.Label)
+                }
             }
         }
     }
@@ -87,4 +96,60 @@ private fun Pill(text: String, modifier: Modifier) {
             .border(1.dp, Glass.Primary, RoundedCornerShape(10.dp))
             .padding(horizontal = 10.dp, vertical = 3.dp),
     )
+}
+
+/** 이 아래면 배터리 숫자를 굵게(경고). 색은 녹색 하나뿐이라 굵기로만 구분한다. */
+const val LOW_BATTERY = 15
+
+/**
+ * 배터리 아이콘: 둥근 테두리 + 꼭지 + 잔량만큼 채운 막대. 충전 중이면 채움이 강조색, 아니면 낮을 때 테두리만 남는다.
+ * 이모지 대신 선으로 그린다(단색 화면).
+ */
+@Composable
+fun BatteryIcon(level: Int, charging: Boolean, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(width = 22.dp, height = 11.dp)) {
+        val stroke = 1.2.dp.toPx()
+        val tip = 2.dp.toPx()
+        val bodyW = size.width - tip - stroke
+        drawRoundRect(
+            color = Glass.Dim,
+            topLeft = Offset(stroke / 2, stroke / 2),
+            size = Size(bodyW, size.height - stroke),
+            cornerRadius = CornerRadius(2.dp.toPx()),
+            style = Stroke(stroke),
+        )
+        drawRoundRect(
+            color = Glass.Dim,
+            topLeft = Offset(bodyW + stroke / 2, size.height * 0.3f),
+            size = Size(tip, size.height * 0.4f),
+            cornerRadius = CornerRadius(1.dp.toPx()),
+        )
+        val inset = stroke + 1.dp.toPx()
+        val fullW = bodyW - 2 * inset + stroke
+        val fill = fullW * level.coerceIn(0, 100) / 100f
+        if (fill > 0f) drawRoundRect(
+            color = if (charging || level > LOW_BATTERY) Glass.Primary else Glass.Dim,
+            topLeft = Offset(inset, inset),
+            size = Size(fill.coerceAtLeast(1.dp.toPx()), size.height - 2 * inset),
+            cornerRadius = CornerRadius(1.dp.toPx()),
+        )
+    }
+}
+
+/** 충전 중 번개(채운 단색 도형). */
+@Composable
+fun ChargingBolt(modifier: Modifier = Modifier) {
+    Canvas(modifier.size(width = 7.dp, height = 11.dp)) {
+        val w = size.width
+        val h = size.height
+        drawPath(Path().apply {
+            moveTo(w * 0.62f, 0f)
+            lineTo(0f, h * 0.58f)
+            lineTo(w * 0.45f, h * 0.58f)
+            lineTo(w * 0.32f, h)
+            lineTo(w, h * 0.40f)
+            lineTo(w * 0.55f, h * 0.40f)
+            close()
+        }, Glass.Primary)
+    }
 }

@@ -26,7 +26,7 @@ import kotlinx.coroutines.flow.Flow
  * 받기에 실패했는데 오프라인이면 "인터넷 연결 없음"을 띄우고, [online]이 다시 true가 되면 저절로 다시 불러온다.
  */
 @Composable
-fun NewsApp(keys: Flow<NavKey>, online: Boolean, onExit: () -> Unit, api: NewsApi) {
+fun NewsApp(keys: Flow<NavKey>, online: Boolean, onBack: () -> Unit, api: NewsApi) {
     var feed by remember { mutableStateOf<Load<Feed>>(Load.Loading) }
     var reload by remember { mutableIntStateOf(0) }
     var nav by rememberSaveable(stateSaver = NavStateSaver) { mutableStateOf(NavState()) }
@@ -67,15 +67,15 @@ fun NewsApp(keys: Flow<NavKey>, online: Boolean, onExit: () -> Unit, api: NewsAp
         }
     }
 
-    // 목록·상세는 상태머신이, 그 밖의 화면(불러오는 중·오류)은 뒤로 = 종료, 탭 = 다시 시도.
+    // 목록·상세는 상태머신이(목록에서 뒤로 = 메뉴), 그 밖의 화면(불러오는 중·오류)은 뒤로 = 메뉴, 탭 = 다시 시도.
     val onKey by rememberUpdatedState { key: NavKey ->
         when {
             articles.isNotEmpty() -> {
                 val result = navigator.reduce(nav, key)
                 nav = result.state
-                if (result.exit) onExit()
+                if (result.exit) onBack()
             }
-            key == NavKey.Back -> onExit()
+            key == NavKey.Back -> onBack()
             key == NavKey.Select && feed !is Load.Loading -> reload++
         }
     }
@@ -90,7 +90,7 @@ fun NewsApp(keys: Flow<NavKey>, online: Boolean, onExit: () -> Unit, api: NewsAp
         )
         articles.isNotEmpty() -> FeedScreen(feed = loaded!!, selectedIndex = shown.selected)
         feed is Load.Loading -> LoadingView()
-        !online -> ErrorView("인터넷 연결 없음", "Wi-Fi가 연결되면 자동으로 다시 불러옵니다", hint = "뒤로: 종료")
+        !online -> ErrorView("인터넷 연결 없음", "Wi-Fi가 연결되면 자동으로 다시 불러옵니다", hint = "뒤로: 메뉴")
         feed is Load.Failure -> ErrorView("불러오지 못했습니다", (feed as Load.Failure).message)
         else -> ErrorView("표시할 기사가 없습니다", "잠시 뒤 다시 시도해 주세요")
     }
