@@ -5,55 +5,44 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ThreadPagesTest {
-    private fun p(code: String, author: String, text: String, images: List<String> = emptyList(), replies: Int = 0) =
-        ThreadPost(code, code, author, text, 0, replyCount = replies, images = images)
+    private fun p(code: String, text: String, images: List<String> = emptyList()) =
+        ThreadPost(code, code, "a", text, 0, images = images, thumbs = images.map { "t-$it" })
 
     @Test
-    fun `본문 → 사진 → 이어 쓴 글 → 댓글 순서이고 각 글 첫 쪽에 작성자가 붙는다`() {
-        val main = p("M", "alice", "본문", images = listOf("u1", "u2"), replies = 1)
-        val pages = buildThreadPages(ThreadItem(main), ThreadDetail(main, listOf(p("S", "alice", "이어서")), listOf(p("R", "bob", "댓글"))), loading = false)
-        assertEquals(5, pages.size)
-        assertEquals(main, (pages[0] as ThreadPage.Text).post)
-        assertEquals(listOf("u1", "u2"), pages.subList(1, 3).map { (it as ThreadPage.Image).url })
-        assertEquals("이어서", (pages[3] as ThreadPage.Text).body)
-        val replies = pages[4] as ThreadPage.Replies
-        assertEquals(listOf("bob"), replies.replies.map { it.author })
-        assertEquals(0, replies.first)
-        assertEquals(1, replies.total)
+    fun `짧은 글은 한 쪽에 본문과 사진 줄과 아이콘 줄`() {
+        val pages = buildPostPages(ThreadItem(p("M", "짧은 글", listOf("u1", "u2"))), null)
+        assertEquals(1, pages.size)
+        assertEquals(listOf("u1", "u2"), pages[0].photos)
+        assertEquals(listOf("t-u1", "t-u2"), pages[0].thumbs)
+        assertTrue(pages[0].header && pages[0].actions)
     }
 
     @Test
-    fun `상세를 받는 동안은 안내 쪽, 못 받았으면 댓글 없음 안내`() {
-        val main = p("M", "a", "본문", replies = 3)
-        assertEquals("댓글 불러오는 중…", (buildThreadPages(ThreadItem(main), null, loading = true).last() as ThreadPage.Text).body)
-        val failed = buildThreadPages(ThreadItem(main), ThreadDetail(main, emptyList(), emptyList()), loading = false)
-        assertTrue((failed.last() as ThreadPage.Text).body.startsWith("댓글을 불러오지 못했습니다"))
+    fun `긴 글은 여러 쪽이고 사진은 마지막 쪽이 짧으면 거기, 길면 다음 쪽에 따로`() {
+        val long = List(40) { "문장 ${it}입니다." }.joinToString(" ")
+        val pages = buildPostPages(ThreadItem(p("M", long, listOf("u"))), null)
+        assertTrue(pages.size >= 2)
+        assertTrue(pages.first().header && !pages[1].header)
+        assertEquals(1, pages.count { it.photos.isNotEmpty() })
+        assertTrue(pages.last().actions)
+        assertTrue(pages.dropLast(1).none { it.actions })
+        val withPhotos = pages.single { it.photos.isNotEmpty() }
+        assertTrue(withPhotos.body.length <= WITH_PHOTOS_CHARS)
     }
 
     @Test
-    fun `긴 글은 여러 쪽, 이모지는 빠지고 사진만 있는 글은 사진 쪽만`() {
-        val long = List(40) { "문장 ${it}입니다." }.joinToString(" ") + " 😀"
-        val pages = buildThreadPages(ThreadItem(p("M", "a", long)), null, loading = false)
-        assertTrue(pages.size > 1)
-        assertTrue(pages.all { it is ThreadPage.Text && it.body.length <= THREAD_PAGE_CHARS && "\uD83D" !in it.body })
-        val photoOnly = buildThreadPages(ThreadItem(p("M", "a", "", images = listOf("u"))), null, loading = false)
-        assertEquals(listOf("u"), photoOnly.map { (it as ThreadPage.Image).url })
+    fun `이어 쓴 글은 본문 다음에, 이모지는 빼고, 상세가 오면 상세의 본문을 쓴다`() {
+        val head = p("M", "목록의 본문 😀")
+        val pages = buildPostPages(ThreadItem(head, listOf(p("S", "이어서"))), null)
+        assertEquals(listOf("목록의 본문", "이어서"), pages.map { it.body })
+        assertTrue(pages.all { it.header })
+        val detail = ThreadDetail(p("M", "상세 본문"), listOf(p("S", "이어서"), p("S2", "또 이어서")), emptyList())
+        assertEquals(listOf("상세 본문", "이어서", "또 이어서"), buildPostPages(ThreadItem(head), detail).map { it.body })
     }
 
     @Test
-    fun `사진은 글마다 최대 개수까지만`() {
-        val many = p("M", "a", "t", images = List(10) { "u$it" })
-        assertEquals(MAX_IMAGES_PER_POST, buildThreadPages(ThreadItem(many), null, false).count { it is ThreadPage.Image })
-    }
-
-    @Test
-    fun `짧은 댓글은 한 쪽에 최대 3개, 긴 댓글과 사진 댓글은 혼자`() {
-        val main = p("M", "a", "본문")
-        val replies = List(4) { p("R$it", "u$it", "짧은 댓글") } + p("L", "long", "긴 댓글 ".repeat(60)) + p("P", "pic", "사진", images = listOf("u"))
-        val pages = buildThreadPages(ThreadItem(main), ThreadDetail(main, emptyList(), replies), loading = false).drop(1)
-        assertEquals(listOf(3, 1), pages.filterIsInstance<ThreadPage.Replies>().map { it.replies.size })
-        assertEquals(listOf(0, 3), pages.filterIsInstance<ThreadPage.Replies>().map { it.first })
-        assertTrue(pages.filterIsInstance<ThreadPage.Text>().any { it.label == "댓글 5/6" })
-        assertTrue(pages.filterIsInstance<ThreadPage.Image>().any { it.post.code == "P" })
+    fun `글 없이 사진만, 아무것도 없으면 안내`() {
+        assertEquals(listOf("u"), buildPostPages(ThreadItem(p("M", "", listOf("u"))), null).single().photos)
+        assertEquals("(내용 없음)", buildPostPages(ThreadItem(p("M", "")), null).single().body)
     }
 }

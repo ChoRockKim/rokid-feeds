@@ -15,7 +15,7 @@ import com.chorockkim.rokidfeeds.threads.ImageState
 import com.chorockkim.rokidfeeds.threads.ThreadDetail
 import com.chorockkim.rokidfeeds.threads.ThreadItem
 import com.chorockkim.rokidfeeds.threads.ThreadPost
-import com.chorockkim.rokidfeeds.threads.buildThreadPages
+import com.chorockkim.rokidfeeds.threads.buildPostPages
 import org.junit.Rule
 import org.junit.Test
 
@@ -46,11 +46,11 @@ class ThreadsSnapshotTest {
         listOf(ThreadPost("2", "A2", "example.user", "[예시] 이어 쓴 글", now - 590)),
         listOf(
             ThreadPost("5", "R1", "commenter", "[예시] 첫 번째 댓글입니다. 짧은 댓글은 한 쪽에 여러 개가 보입니다.", now - 300, likeCount = 3, avatar = "avatar"),
-            ThreadPost("6", "R2", "someone", "[예시] 두 번째 댓글, 이 댓글에는 답글이 있습니다", now - 200, replyCount = 4),
+            ThreadPost("6", "R2", "someone", "[예시] 두 번째 댓글, 사진과 답글이 있습니다", now - 200, replyCount = 4, images = listOf("r1", "r2")),
             ThreadPost("7", "R3", "third.reply", "[예시] 세 번째 댓글", now - 100, likeCount = 1),
         ),
     )
-    private val pages = buildThreadPages(items[0], detail, loading = false)
+    private val pages = buildPostPages(items[0], detail)
 
     private val fakePhoto: @Composable (String) -> ImageState = {
         val bitmap = Bitmap.createBitmap(640, 400, Bitmap.Config.ARGB_8888)
@@ -67,16 +67,24 @@ class ThreadsSnapshotTest {
     fun threads_feed() = shot { ThreadsFeedScreen(items, selectedIndex = 0, loading = false, loggedIn = true, now = now, image = fakePhoto, lazyThumbs = false) }
 
     @Test
+    fun threads_feed_longPost() = shot {
+        val long = ThreadPost("9", "L1", "long.writer", List(14) { "[예시] 긴 글의 ${it + 1}번째 문장입니다." }.joinToString(" "), now - 900, likeCount = 12, replyCount = 5)
+        ThreadsFeedScreen(listOf(ThreadItem(long)) + items, selectedIndex = 0, loading = false, loggedIn = true, now = now, image = fakePhoto, lazyThumbs = false)
+    }
+
+    @Test
     fun threads_empty_notLoggedIn() = shot { ThreadsFeedScreen(emptyList(), selectedIndex = 0, loading = false, loggedIn = false, now = now) }
 
     @Test
-    fun threads_detail_text() = shot { ThreadsDetailScreen(pages, pageIndex = 0, now = now, image = fakePhoto) }
+    fun threads_post() = shot { ThreadPostScreen(pages[0], 0, pages.size, comments = 3, now = now, image = fakePhoto) }
 
     @Test
-    fun threads_detail_photo() = shot { ThreadsDetailScreen(pages, pageIndex = 1, now = now, image = fakePhoto) }
+    fun threads_photo() = shot { ThreadPhotoScreen(main, "photo", 0, 2, image = fakePhoto) }
 
     @Test
-    fun threads_detail_reply() = shot { ThreadsDetailScreen(pages, pageIndex = pages.indexOfFirst { it is com.chorockkim.rokidfeeds.threads.ThreadPage.Replies }, selectedReply = 1, now = now, image = fakePhoto) }
+    fun threads_comments() = shot {
+        ThreadCommentsScreen(detail.replies, selected = 1, loading = false, expected = 3, now = now, image = fakePhoto, lazyThumbs = false)
+    }
 
     @Test
     fun threads_login_waiting() = shot {

@@ -42,11 +42,14 @@ import androidx.compose.ui.unit.dp
 import com.chorockkim.rokidfeeds.threads.ImageState
 import com.chorockkim.rokidfeeds.threads.ThreadImages
 import com.chorockkim.rokidfeeds.threads.ThreadItem
-import com.chorockkim.rokidfeeds.threads.ThreadPage
 import com.chorockkim.rokidfeeds.threads.ThreadPost
 import com.chorockkim.rokidfeeds.threads.rememberThreadImage
 import com.chorockkim.rokidfeeds.util.stripEmoji
 import com.chorockkim.rokidfeeds.util.timeAgo
+
+/** 목록에서 고른 글의 본문 줄 수(띠 282에서 머리·이름·아이콘 줄을 빼고 남는 만큼). */
+const val FEED_LINES_WITH_PHOTOS = 4
+const val FEED_LINES_TEXT_ONLY = 7
 
 /** 선택한 줄에 이만큼 머물면 썸네일을 받는다. */
 const val THUMB_DWELL_MS = 700L
@@ -108,7 +111,10 @@ fun ThreadsFeedScreen(
                         post = item.head,
                         now = now,
                         image = image,
-                        maxLines = if (selected) 4 else 2,
+                        // 고른 글은 띠 높이에 맞춰: 사진 줄이 있으면 4줄, 없으면 7줄(넘치면 "… 탭하면 전체"). 나머지는 2줄.
+                        maxLines = if (!selected) 2 else if (item.head.images.isNotEmpty()) FEED_LINES_WITH_PHOTOS else FEED_LINES_TEXT_ONLY,
+                        moreHint = selected,
+                        thumbHeight = 56.dp,
                         threadLine = item.continuation.isNotEmpty(),
                         thumbs = selected && settled,
                         note = if (item.continuation.isNotEmpty()) "이어진 글 ${item.continuation.size}개" else null,
@@ -127,86 +133,126 @@ fun ThreadsFeedScreen(
     }
 }
 
+/** 글·댓글 화면 아래 안내 줄(왼쪽 조작, 오른쪽 위치). */
+@Composable
+private fun Footer(hint: String, position: String) {
+    Row(Modifier.fillMaxWidth()) {
+        BasicText(hint, style = Glass.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        BasicText(position, style = Glass.Caption)
+    }
+}
+
 /**
- * Threads 글 상세 한 쪽. 앱의 글 화면처럼: 작성자 머리(아바타·이름·시각) → 본문 → 아이콘 줄, 사진은 한 쪽에 크게(녹색 단색),
- * 댓글은 아바타 줄 목록(짧은 댓글은 한 쪽에 여러 개).
+ * 글 한 쪽: Threads 피드처럼 작성자 머리 → 본문 → 본문 아래 사진 줄 → 아이콘 줄. 사진 줄이 있으면 탭으로 크게 본다.
+ * 아래로 계속 넘기면 댓글 목록으로 간다.
  */
 @Composable
-fun ThreadsDetailScreen(
-    pages: List<ThreadPage>,
+fun ThreadPostScreen(
+    page: com.chorockkim.rokidfeeds.threads.PostPage,
     pageIndex: Int,
-    /** 댓글 쪽에서 고른 댓글(그 쪽 안 순서). 탭하면 그 댓글의 답글을 연다. */
-    selectedReply: Int? = null,
-    /** 1 = 목록에서 연 글, 2 이상 = 댓글을 열어 들어온 글. */
+    pageCount: Int,
+    comments: Int,
     depth: Int = 1,
     now: Long = System.currentTimeMillis() / 1000,
     image: ImageSource = { rememberThreadImage(it) },
 ) {
-    val page = pages[pageIndex.coerceIn(0, pages.lastIndex)]
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Column(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            when (page) {
-                is ThreadPage.Text -> {
-                    page.label?.let { BasicText(it, style = Glass.Label) }
-                    val post = page.post
-                    if (post != null) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Avatar(post, 30.dp)
-                            Spacer(Modifier.width(10.dp))
-                            NameLine(post, now)
-                        }
-                    }
-                    BasicText(page.body, style = ThreadsText.Body.copy(fontSize = 14.sp, lineHeight = 20.sp), overflow = TextOverflow.Clip, modifier = Modifier.weight(1f, fill = false))
-                    if (post != null && page.label == null) ActionRow(post)
+            if (page.header) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Avatar(page.post, 30.dp)
+                    Spacer(Modifier.width(10.dp))
+                    NameLine(page.post, now)
                 }
-                is ThreadPage.Image -> {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Avatar(page.post, 20.dp)
-                        Spacer(Modifier.width(8.dp))
-                        BasicText(page.post.author, style = ThreadsText.Username, maxLines = 1)
-                        Spacer(Modifier.weight(1f))
-                        if (page.total > 1) BasicText("${page.index + 1}/${page.total}", style = ThreadsText.Time)
+            }
+            if (page.body.isNotBlank()) {
+                BasicText(page.body, style = ThreadsText.Body.copy(fontSize = 14.sp, lineHeight = 20.sp), overflow = TextOverflow.Clip, modifier = Modifier.weight(1f, fill = false))
+            }
+            if (page.photos.isNotEmpty()) {
+                ThumbRow(page.thumbs.ifEmpty { page.photos }, image, height = if (page.body.isBlank()) 120.dp else 72.dp)
+                BasicText("탭하면 사진 크게 (${page.photos.size}장)", style = ThreadsText.Time)
+            }
+            if (page.actions) ActionRow(page.post)
+        }
+        val next = if (pageIndex < pageCount - 1) "▼ 다음" else if (comments > 0) "▼ 댓글 $comments" else "▼ 끝"
+        val tap = if (page.photos.isNotEmpty()) "탭 사진" else "탭 다음"
+        Footer("◀ ▶ 위아래 · $next · $tap · 뒤로 " + if (depth > 1) "이전 글" else "목록", "${pageIndex + 1}/$pageCount")
+    }
+}
+
+/** 사진 크게 보기: 띠 전체에 한 장(녹색 단색). 위아래로 다른 사진, 뒤로 글. */
+@Composable
+fun ThreadPhotoScreen(
+    post: ThreadPost,
+    url: String,
+    index: Int,
+    total: Int,
+    image: ImageSource = { rememberThreadImage(it) },
+) {
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+            val state = image(url)
+            val bitmap = state.image
+            when {
+                bitmap != null -> Image(bitmap, null, contentScale = ContentScale.Fit, colorFilter = ThreadImages.GreenFilter, modifier = Modifier.fillMaxSize())
+                state.failed -> BasicText("사진을 불러오지 못했습니다", style = Glass.BodySmall)
+                else -> BasicText("사진 불러오는 중…", style = Glass.BodySmall)
+            }
+        }
+        Footer("@${post.author} · ◀ ▶ 다른 사진 · 뒤로 글", "${index + 1}/$total")
+    }
+}
+
+/**
+ * 댓글 목록: 쪽으로 나누지 않고 한 줄씩 고른다(고른 댓글이 맨 위, 바로 스크롤). 사진이 있는 댓글도 다른 댓글처럼 작은 사진 줄을
+ * 붙인다(사진은 고른 댓글에 잠시 머물 때만 받는다). 탭하면 그 댓글을 글처럼 열어 답글과 큰 사진을 본다.
+ */
+@Composable
+fun ThreadCommentsScreen(
+    comments: List<ThreadPost>,
+    selected: Int,
+    loading: Boolean,
+    expected: Int,
+    depth: Int = 1,
+    now: Long = System.currentTimeMillis() / 1000,
+    image: ImageSource = { rememberThreadImage(it) },
+    lazyThumbs: Boolean = true,
+) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(selected, comments.size) { if (comments.isNotEmpty()) listState.scrollToItem(selected.coerceIn(0, comments.lastIndex)) }
+    var settled by remember(selected) { mutableStateOf(!lazyThumbs) }
+    LaunchedEffect(selected) { if (lazyThumbs) { delay(THUMB_DWELL_MS); settled = true } }
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        val title = if (depth > 1) "답글" else "댓글"
+        BasicText(
+            "$title ${comments.size}" + (if (expected > comments.size) " / $expected" else "") + (if (loading) " · 불러오는 중…" else ""),
+            style = Glass.Label,
+        )
+        Divider()
+        if (comments.isEmpty()) {
+            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                BasicText(if (loading) "$title 불러오는 중…" else "$title 이 없습니다", style = Glass.BodySmall)
+            }
+        } else {
+            LazyColumn(state = listState, modifier = Modifier.fillMaxWidth().weight(1f)) {
+                itemsIndexed(comments, key = { _, c -> c.pk }) { i, c ->
+                    val on = i == selected
+                    Row(Modifier.fillMaxWidth().alpha(if (on) 1f else 0.45f)) {
+                        Box(Modifier.width(3.dp).height(if (on) 40.dp else 0.dp).background(Glass.Primary, RoundedCornerShape(2.dp)))
+                        Spacer(Modifier.width(7.dp))
+                        PostBlock(
+                            c, now, image, maxLines = if (on) 4 else 2, avatarSize = 24.dp, actions = false,
+                            thumbs = on && settled,
+                            thumbHeight = 48.dp,
+                            note = if (c.replyCount > 0) "답글 ${c.replyCount}개" + if (on) " · 탭하면 보기" else "" else null,
+                            modifier = Modifier.padding(vertical = 5.dp),
+                        )
                     }
-                    Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                        val state = image(page.url)
-                        val bitmap = state.image
-                        when {
-                            bitmap != null -> Image(bitmap, null, contentScale = ContentScale.Fit, colorFilter = ThreadImages.GreenFilter, modifier = Modifier.fillMaxSize())
-                            state.failed -> BasicText("사진을 불러오지 못했습니다", style = Glass.BodySmall)
-                            else -> BasicText("사진 불러오는 중…", style = Glass.BodySmall)
-                        }
-                    }
-                }
-                is ThreadPage.Replies -> {
-                    BasicText(
-                        (if (depth > 1) "답글" else "댓글") + "  ${page.first + 1}–${page.first + page.replies.size} / ${page.total}",
-                        style = Glass.Label,
-                    )
                     Divider()
-                    page.replies.forEachIndexed { i, reply ->
-                        val on = i == selectedReply
-                        Row(Modifier.fillMaxWidth().alpha(if (selectedReply == null || on) 1f else 0.45f)) {
-                            Box(Modifier.width(3.dp).height(if (on) 40.dp else 0.dp).background(Glass.Primary, RoundedCornerShape(2.dp)))
-                            Spacer(Modifier.width(7.dp))
-                            PostBlock(
-                                reply, now, image, maxLines = 2, avatarSize = 24.dp, actions = false,
-                                note = if (reply.replyCount > 0) "답글 ${reply.replyCount}개" + if (on) " · 탭하면 보기" else "" else null,
-                                modifier = Modifier.padding(vertical = 4.dp),
-                            )
-                        }
-                        if (i < page.replies.lastIndex) Divider()
-                    }
                 }
             }
         }
-        Row(Modifier.fillMaxWidth()) {
-            val hint = when {
-                page is ThreadPage.Replies -> "◀ ▶ 댓글 고르기 · 탭 답글 보기 · 뒤로 " + if (depth > 1) "이전 글" else "목록"
-                else -> "◀ ▶ 쪽 · 탭 다음 · 뒤로 " + if (depth > 1) "이전 글" else "목록"
-            }
-            BasicText(hint, style = Glass.Caption, maxLines = 1, modifier = Modifier.weight(1f))
-            BasicText("${pageIndex + 1}/${pages.size}", style = Glass.Caption)
-        }
+        Footer("◀ ▶ 고르기 · 탭 열기 · 뒤로 글", if (comments.isEmpty()) "" else "${selected + 1}/${comments.size}")
     }
 }
 

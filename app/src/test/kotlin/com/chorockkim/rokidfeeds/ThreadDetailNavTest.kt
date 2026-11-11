@@ -1,6 +1,7 @@
 package com.chorockkim.rokidfeeds
 
-import com.chorockkim.rokidfeeds.nav.DetailPos
+import com.chorockkim.rokidfeeds.nav.DetailState
+import com.chorockkim.rokidfeeds.nav.Mode
 import com.chorockkim.rokidfeeds.nav.NavKey
 import com.chorockkim.rokidfeeds.nav.ThreadDetailNav
 import org.junit.Assert.assertEquals
@@ -9,37 +10,52 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ThreadDetailNavTest {
-    // 쪽: 본문, 사진, 댓글 3개, 댓글 2개
-    private val sizes = listOf(0, 0, 3, 2)
-    private fun go(pos: DetailPos, vararg keys: NavKey) = keys.fold(pos) { p, k -> ThreadDetailNav.reduce(p, k, sizes).pos }
+    // 글 2쪽(둘째 쪽에 사진 3장), 댓글 4개
+    private val photos = listOf(0, 3)
+    private val comments = 4
+    private fun go(s: DetailState, vararg keys: NavKey) = keys.fold(s) { st, k -> ThreadDetailNav.reduce(st, k, photos, comments).state }
 
     @Test
-    fun `다음은 댓글을 하나씩 고르고 쪽 끝에서 다음 쪽, 맨 끝에서 멈춘다`() {
-        assertEquals(DetailPos(2, 0), go(DetailPos(), NavKey.Next, NavKey.Next))
-        assertEquals(DetailPos(2, 2), go(DetailPos(2, 0), NavKey.Next, NavKey.Next))
-        assertEquals(DetailPos(3, 0), go(DetailPos(2, 2), NavKey.Next))
-        assertEquals(DetailPos(3, 1), go(DetailPos(3, 0), NavKey.Next, NavKey.Next, NavKey.Next))
+    fun `글을 아래로 넘기면 다음 쪽, 마지막 쪽 다음은 댓글 목록`() {
+        assertEquals(DetailState(page = 1), go(DetailState(), NavKey.Next))
+        assertEquals(DetailState(Mode.Comments, page = 1, comment = 0), go(DetailState(), NavKey.Next, NavKey.Next))
+        assertEquals(DetailState(Mode.Comments, page = 1, comment = 3), go(DetailState(page = 1), NavKey.Next, NavKey.Next, NavKey.Next, NavKey.Next, NavKey.Next, NavKey.Next))
     }
 
     @Test
-    fun `이전은 앞 쪽의 마지막 댓글로 들어가고 맨 앞에서 멈춘다`() {
-        assertEquals(DetailPos(2, 2), go(DetailPos(3, 0), NavKey.Previous))
-        assertEquals(DetailPos(1, 0), go(DetailPos(2, 0), NavKey.Previous))
-        assertEquals(DetailPos(0, 0), go(DetailPos(1, 0), NavKey.Previous, NavKey.Previous))
+    fun `사진이 있는 쪽에서 탭하면 사진 크게, 위아래로 다른 사진, 뒤로는 글`() {
+        val viewer = go(DetailState(page = 1), NavKey.Select)
+        assertEquals(DetailState(Mode.Photos, page = 1, photo = 0), viewer)
+        assertEquals(2, go(viewer, NavKey.Next, NavKey.Next, NavKey.Next).photo) // 끝에서 멈춤
+        assertEquals(0, go(viewer, NavKey.Previous).photo)
+        assertEquals(DetailState(Mode.Post, page = 1, photo = 1), go(viewer, NavKey.Next, NavKey.Back))
     }
 
     @Test
-    fun `댓글 쪽에서 선택하면 그 댓글을 열고, 다른 쪽에서는 다음 쪽`() {
-        assertEquals(1, ThreadDetailNav.reduce(DetailPos(2, 1), NavKey.Select, sizes).openReply)
-        val onText = ThreadDetailNav.reduce(DetailPos(0, 0), NavKey.Select, sizes)
-        assertNull(onText.openReply)
-        assertEquals(DetailPos(1, 0), onText.pos)
+    fun `사진 없는 쪽의 탭은 다음 쪽`() {
+        assertEquals(DetailState(page = 1), go(DetailState(page = 0), NavKey.Select))
     }
 
     @Test
-    fun `뒤로는 back, 댓글이 늦게 와 쪽이 줄어도 범위 안으로`() {
-        assertTrue(ThreadDetailNav.reduce(DetailPos(2, 1), NavKey.Back, sizes).back)
-        assertEquals(DetailPos(1, 0), ThreadDetailNav.normalize(DetailPos(5, 4), listOf(0, 0)))
-        assertEquals(DetailPos(2, 2), ThreadDetailNav.normalize(DetailPos(2, 9), sizes))
+    fun `댓글에서 탭은 그 댓글 열기, 뒤로는 글 첫 쪽, 맨 위에서 위로는 글 마지막 쪽`() {
+        val at2 = DetailState(Mode.Comments, page = 1, comment = 2)
+        assertEquals(2, ThreadDetailNav.reduce(at2, NavKey.Select, photos, comments).openComment)
+        assertEquals(DetailState(Mode.Post, page = 0, comment = 2), go(at2, NavKey.Back))
+        assertEquals(DetailState(Mode.Post, page = 1, comment = 0), go(DetailState(Mode.Comments, page = 1, comment = 0), NavKey.Previous))
+    }
+
+    @Test
+    fun `글에서 뒤로는 밖으로, 댓글이 없으면 글 끝에서 멈춘다`() {
+        assertTrue(ThreadDetailNav.reduce(DetailState(), NavKey.Back, photos, comments).back)
+        val noComments = ThreadDetailNav.reduce(DetailState(page = 1), NavKey.Next, photos, 0)
+        assertEquals(DetailState(page = 1), noComments.state)
+        assertNull(ThreadDetailNav.reduce(DetailState(Mode.Comments), NavKey.Select, photos, 0).openComment)
+    }
+
+    @Test
+    fun `상세가 늦게 와 쪽·댓글이 바뀌어도 범위 안으로`() {
+        assertEquals(DetailState(Mode.Post, page = 0), ThreadDetailNav.normalize(DetailState(Mode.Comments, page = 3, comment = 7), listOf(0), 0))
+        assertEquals(DetailState(Mode.Comments, page = 1, comment = 3), ThreadDetailNav.normalize(DetailState(Mode.Comments, page = 1, comment = 9), photos, 4))
+        assertEquals(DetailState(Mode.Post, page = 0), ThreadDetailNav.normalize(DetailState(Mode.Photos, page = 0, photo = 2), photos, 4))
     }
 }

@@ -20,6 +20,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -166,6 +170,9 @@ fun PostBlock(
     actions: Boolean = true,
     avatarSize: Dp = 28.dp,
     note: String? = null,
+    thumbHeight: Dp = 64.dp,
+    /** 본문이 잘리면 "… 탭하면 전체"를 붙인다(목록에서 고른 글). */
+    moreHint: Boolean = false,
 ) {
     // 이어진 글 세로선은 줄 전체 높이를 다시 재지 않고(IntrinsicSize는 줄마다 두 번 측정해 무거웠다) 그릴 때 한 번에 긋는다.
     val lineColor = Glass.Primary40
@@ -182,15 +189,23 @@ fun PostBlock(
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             NameLine(post, now, extra = if (!actions && post.likeCount > 0) "좋아요 ${compactCount(post.likeCount)}" else null)
             val text = stripEmoji(post.text)
-            if (text.isNotEmpty()) BasicText(text, style = ThreadsText.Body, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
+            if (text.isNotEmpty()) {
+                var cut by remember(text, maxLines) { mutableStateOf(false) }
+                BasicText(text, style = ThreadsText.Body, maxLines = maxLines, overflow = TextOverflow.Ellipsis, onTextLayout = { cut = it.hasVisualOverflow })
+                if (moreHint && cut) BasicText("… 탭하면 전체", style = ThreadsText.Time)
+            }
             if (post.images.isNotEmpty()) {
-                if (thumbs) ThumbRow(post.thumbs.ifEmpty { post.images }, image) else BasicText("사진 ${post.images.size}장", style = ThreadsText.Time)
+                // 사진을 받기 전에도 같은 자리에 빈 사진 칸을 그려 모양이 다른 글·댓글과 같게 한다.
+                ThumbRow(post.thumbs.ifEmpty { post.images }, if (thumbs) image else NoImage, height = thumbHeight)
             } else if (post.hasVideo) BasicText("동영상", style = ThreadsText.Time)
             note?.let { BasicText(it, style = ThreadsText.Time) }
             if (actions) ActionRow(post, Modifier.padding(top = 2.dp))
         }
     }
 }
+
+/** 사진을 받지 않을 때(빈 칸만). */
+val NoImage: ImageSource = { ImageState(null, false) }
 
 /** 사진 작은 줄(최대 3장, 둥근 모서리, 녹색 단색). */
 @Composable
