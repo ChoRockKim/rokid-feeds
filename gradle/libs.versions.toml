@@ -9,6 +9,8 @@ activityCompose = "1.12.4"
 coroutines = "1.11.0"
 junit = "4.13.2"
 orgJson = "20260814"
+# 다른 Rokid 앱(rokid-youtube·rokid-lens·rokid-conversate)과 같은 화면 스냅샷 도구.
+paparazzi = "2.0.0-alpha05.1"
 
 [libraries]
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
@@ -23,3 +25,4 @@ org-json = { module = "org.json:json", version.ref = "orgJson" }
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+paparazzi = { id = "app.cash.paparazzi", version.ref = "paparazzi" }

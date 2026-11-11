@@ -1,26 +1,46 @@
-# news-feed
+# rokid-feeds
 
-한국어 뉴스 RSS(연합뉴스·동아일보·경향신문)와 GeekNews(Atom, 개발 커뮤니티 큐레이션)를 **하나의 통합 목록**으로 합쳐 목록→상세로 보여 주는 Android 앱. Rokid 글래스용 단색 HUD UI를 폰 에뮬레이터에서 개발한 **시범 프로젝트**다.
-공통 규칙은 `~/orca/projects/CLAUDE.md`를 따른다.
+한국어 뉴스 RSS(연합뉴스·동아일보·경향신문)와 GeekNews(Atom)를 **하나의 통합 목록**으로 합쳐 목록→상세로 보여 주는 Rokid 안경 앱.
+화면·입력·네트워크·배포는 다른 Rokid 앱(rokid-lens, rokid-youtube, rokid-conversate, rokid-glass-ios-navigation)과 같은 규칙을 따른다.
+공통 사실·방법은 `ChoRockKim/rokid-conversate`의 `docs/rokid-dev-notes.md`에 있다.
 
-## 이 프로젝트에서 다른 점
+## 먼저 읽을 것
+- `README.md` — 화면(스냅샷), 조작, 설치·업데이트, 확인 상태
 
-- Kotlin + Jetpack Compose(`foundation`만, Material3 없음). 의존성은 최소로 유지하고 추가할 때 이유를 적는다.
-- 빌드: `./gradlew assembleDebug`, 테스트: `./gradlew testDebugUnitTest`. JDK 17, Gradle 9.6.0, AGP 9.4.1.
-- compileSdk는 36이다(설치된 SDK 최대). 최신 Compose BOM·core는 37을 요구하므로 `gradle/libs.versions.toml`의 버전을 올릴 때는 SDK 37을 먼저 설치해야 한다.
-- UI는 글래스 규격을 따른다: 480×352 고정 캔버스, `#40ff5e` 단색과 투명도(100/60/40/8%), 검정 배경, 다른 색 금지(오류도 녹색), 그림자 대신 윤곽선. 토큰은 `ui/Theme.kt`의 `Glass`에 둔다.
-- 입력은 **←/→, Enter, Back만** 쓴다(공통 컨벤션의 "Rokid 글래스 UI 입력 가정"). 목록은 ←/→로 양방향 순환하고 상세는 ←/→로 쪽을 넘기며(끝에서 멈춤) ↑↓는 처리하지 않는다. 키 → `NavKey` 매핑은 `ui/Keys.kt` 한 곳에 두고, 내비게이션 규칙은 `nav/Navigator.kt`(Android 없는 순수 상태머신)에만 둔다. 규칙을 바꾸면 `NavigatorTest`를 먼저 고친다.
-- 상세는 스크롤 없이 쪽 단위다. 쪽당 글자 수는 `util/Pager.kt`의 상수(첫 쪽 220, 나머지 320, 링크 70)이며, 상수를 바꾸면 에뮬레이터에서 가장 긴 제목·본문으로 넘침을 눈으로 확인한다.
-- 네트워크는 `data/BoundedHttp.kt`를 통해서만 한다(본문 4MiB, 리다이렉트 4회, 타임아웃 8초, 스킴·다운그레이드 검사). 설계 근거는 `rokid/docs/05-nexus-feature-control-patterns.md`.
-- 뉴스 출처는 `data/NewsApi.kt`의 `SOURCES`에만 두고, 소스별 10개씩 받아 `data/NewsMerge.kt`에서 소스를 번갈아 한 개씩 끼워 합친다(시각순으로만 정렬하면 몇 시간 전 GeekNews 글이 뒤로 밀려 보이지 않는다). 각 소스 안에서는 최신순이다. 일부 언론사만 실패하면 성공한 기사만 보여 주고 실패한 이름을 푸터에 표시한다. 피드를 추가하기 전에 HTTP 200, UTF-8, 요약(description) 유무, 크기를 직접 확인한다(한겨레는 요약 없음, SBS는 790KB라 제외했다).
-- RSS는 정규식으로 `<item>`만 읽는다(`data/RssParser.kt`). DTD·엔티티 해석을 하지 않으려는 선택이며, 이 한계는 파서 주석에 적혀 있다.
-- 순수 로직(`RssParser`, `mergeArticles`, `htmlToText`, `timeAgo`)과 `NewsApi`(로컬 HTTP 서버)는 JVM 단위 테스트로 검증한다.
-- 기사 본문과 요약의 저작권은 각 언론사에 있다. RSS 요약은 언론사가 83~500자로 잘라 주므로, 상세를 열면 연합뉴스·동아일보·경향신문은 원문 페이지에서 본문을 받아 최대 2,400자까지 보여 준다(`data/ArticleBody.kt`, 소스별 규칙). 구조가 바뀌어 못 뽑으면 RSS 요약으로 폴백하고, 원문 링크를 함께 보여 준다. GeekNews는 요약이 충분해 본문을 받지 않는다.
-- 실기기(Rokid 글래스) 설치는 허락을 받은 뒤에 한다. 현재 연결된 기기는 없다.
-- 시작할 때 인터넷이 없으면 Wi-Fi 연결 화면이 먼저 뜬다(`ui/WifiScreen.kt`). Enter(탭)로 `local.properties`의 `wifi.ssid`/`wifi.password`에 `WifiNetworkSpecifier`로 연결한다(`net/WifiConnector.kt`). 값은 `local.properties.example`을 복사해 채우고 커밋하지 않는다.
-- Wi-Fi 비밀번호는 빌드 시 APK(`BuildConfig`)에 들어간다. APK를 공유·배포할 때는 개인 Wi-Fi를 넣지 않는다. 비밀번호는 화면과 로그에 출력하지 않는다.
-- 시스템이 첫 연결 때 확인 창("Connect to device")을 띄운다. 앱이 건너뛸 수 없으므로 "완전 자동 연결"이라고 쓰지 않는다.
-- **에뮬레이터는 공유 자원일 수 있다.** 같은 adb 서버에 다른 세션이 붙어 있을 수 있으니, 이 프로젝트의 UI 확인은 전용 AVD(`NewsFeed_Test`, `~/.android/avd/`)를 `-port 5556`으로 띄우고 **모든 adb 명령에 `-s emulator-5556`을 붙인다**. `adb devices`에 모르는 기기가 있거나, 포그라운드에 이 앱이 아닌 앱이 있으면 키 입력·네트워크 변경을 멈추고 확인한다. 네트워크 설정(`svc data`, `cmd wifi`)을 바꿨으면 반드시 원래대로 되돌린다.
-- Wi-Fi는 **이 앱의 HUD 화면**(홈 → 목록 → 폼)이며 OS 설정 화면이 아니다. 내비게이션은 `nav/WifiFlow`, 줄 구성과 입력 검증은 `nav/WifiItems`, 보안 판별은 `net/WifiSecurity`에 두고 순수 로직은 JVM 테스트로 고정한다. OS 설정 화면은 목록 맨 아래의 보험 줄로만 남겨 둔다.
-- **Wi-Fi 목록 스캔에는 `ACCESS_FINE_LOCATION`(+위치 서비스)이 필요하다.** 안드로이드 13+에서도 `NEARBY_WIFI_DEVICES`로는 안 된다(공식 문서, API 36 에뮬레이터에서 확인). 스캔·연결 중 시스템 예외는 앱을 죽이지 않고 결과로 바꾼다.
-- 사용자가 고른 Wi-Fi는 성공했을 때만 `net/WifiStore`(Keystore AES-GCM)로 저장한다. SSID·비밀번호를 로그·화면·평문 저장소에 내보내지 않는다. 저장값이 빌드 시 값(`local.properties`)보다 우선한다.
+## 작업 규칙
+- 사실을 쓸 때 **실기**(안경에서 확인) / **서버** / **에뮬레이터·빌드** / **문서**(소스·문서만 읽음) / **미확인**을 구분한다. 클라우드 세션은 안경을 못 쓰므로 "실기 미확인"을 적는다.
+- 토큰·키(릴리스 키스토어, `OTA_UPLOAD_TOKEN`)는 환경 변수로만 쓴다. 저장소·로그·문서에 넣지 않는다.
+- 빌드: `./gradlew :app:assembleDebug`, 테스트: `./gradlew :app:testDebugUnitTest`. JDK 17+, Gradle 9.6.0, AGP 9.4.1, compileSdk 36.
+- 테스트 이름이 한국어라 `LANG=C.UTF-8`이 아닌 환경에서는 Kotlin 컴파일이 경로 오류로 실패한다.
+- 클라우드에서 Maven Central이 429를 주면 Google 미러(`maven-central.storage-download.googleapis.com/maven2`)로 바꾸는 세션 전용 init 스크립트(`~/.gradle/init.d/`)를 쓴다. 저장소 설정은 그대로 둔다.
+- 화면을 바꾸면 `./gradlew :app:recordPaparazziDebug`로 스냅샷(`app/src/test/snapshots/images`)을 다시 만들어 함께 커밋한다.
+- 실기 설치는 사용자가 한다(adb 케이블). 첫 설치 뒤로는 OTA로 올린다.
+
+## 화면 (다른 Rokid 앱과 같음)
+- 480×282 논리 단위 띠를 화면 아래 가운데에 그린다. `MainActivity.attachBaseContext`가 화면 가로가 480dp가 되도록 밀도를 맞추고(글꼴 배율 무시), `ui/GlassScreen.kt`가 띠를 그린다. 띠 위는 검정(안경에서 투명).
+- 여백 18, 강조 `#00ff66`, 보조 `#4da86c`, 윤곽선 투명도 40%. 토큰은 `ui/Theme.kt`의 `Glass`에만 둔다. 밝은 면·다른 색(오류 포함)은 쓰지 않는다. 이모지는 컬러로 그려지므로 쓰지 않는다.
+- 상태(업데이트 · Wi-Fi/인터넷 · 지난번 튕긴 이유 · 시각/배터리)는 띠 바로 위 작은 알약으로만 보여 준다. 시스템 화면(Wi-Fi 설정 등)은 밝고 커서 앞을 가리므로 앱이 저절로 열지 않는다.
+
+## 입력 (다른 Rokid 앱과 같음)
+- 터치패드 키 → `input/GlassesInput.kt`(rokid-lens 그대로): 쓸기 = DPAD 좌우·183/184, 탭 = ENTER·202, 세로 쓸기 = DPAD 위/아래, 링 미디어 키, 방향 키 240ms 디바운스·`repeatCount > 0` 무시. Back은 시스템 Back으로.
+- R08 링 → `input/RingTarget.kt`: 띠 위 투명 View 하나만 접근성 노드로 노출하고(Compose 쪽은 `NO_HIDE_DESCENDANTS`) SCROLL_FORWARD/BACKWARD/CLICK을 받는다. 행마다 포커스를 두지 않는다.
+- 동작 → `NavKey` 매핑은 `input/NavKeys.kt` 한 곳, 규칙은 `nav/Navigator.kt`(Android 없는 순수 상태머신)에만 둔다. 규칙을 바꾸면 `NavigatorTest`를 먼저 고친다. 화면(`FeedScreen`, `DetailScreen`)은 상태를 보여 주기만 한다.
+- 목록은 이전/다음이 양끝에서 순환, 상세는 쪽 이동이며 끝에서 멈춘다. 탭 = 열기/다음 쪽, 뒤로 = 목록/종료.
+
+## 네트워크
+- Wi-Fi 고르기·연결은 **시스템에 맡긴다**(저장된 iPhone 핫스팟에 자동 연결). 앱이 네트워크를 고르면(`WifiNetworkSpecifier`) 시스템 확인 창이 뜨므로 쓰지 않는다.
+- Wi-Fi가 꺼져 있으면 `net/WifiEnabler.kt`(rokid-lens 그대로)가 rokid-conversate의 **"Wi-Fi 켜기 도우미"**(`com.chorockkim.conversate.wifihelper`, targetSdk 28) 등으로 켠다. 본앱은 무확인 OTA 때문에 targetSdk를 28로 낮출 수 없다.
+- 피드를 못 받았는데 오프라인이면 "인터넷 연결 없음"을 띄우고 연결이 돌아오면 저절로 다시 받는다(`ui/NewsApp.kt`).
+- 뉴스·본문 요청은 `data/BoundedHttp.kt`만 쓴다(본문 4MiB, 리다이렉트 4회, 타임아웃 8초, 스킴·다운그레이드 검사). OTA APK 받기만 `update/Updater.kt`가 직접 스트리밍한다(빌드 시 고정한 우리 서버 하나).
+
+## 업데이트 (다른 Rokid 앱과 같음)
+- 패키지 `com.chorockkim.rokidfeeds`, minSdk 26, targetSdk 35, versionCode = X*10000+Y*100+Z(`-PappVersion`).
+- 켤 때마다 rokid-conversate 서버(server-v2)의 `/apps/rokid-feeds/latest`를 확인하고, 새 버전이면 받아 SHA-256·패키지·버전·서명을 확인한 뒤 `USER_ACTION_NOT_REQUIRED`로 설치, `MY_PACKAGE_REPLACED`에서 다시 띄운다.
+- 릴리스는 `scripts/release.sh X.Y.Z [--upload]`, **고정 키**(다른 Rokid 앱과 같은 키스토어·별칭 `rokidyoutube`). 키를 잃으면 OTA가 불가능하다.
+- 서버의 `OTA_PUBLIC_APPS`에 `rokid-feeds`가 있어야 한다(rokid-conversate 쪽 설정).
+
+## 뉴스
+- 출처는 `data/NewsApi.kt`의 `SOURCES`에만 두고, 소스별 10개씩 받아 `data/NewsMerge.kt`에서 번갈아 한 개씩 끼워 합친다(시각순으로만 정렬하면 GeekNews 글이 뒤로 밀린다). 각 소스 안에서는 최신순. 일부만 실패하면 성공한 기사만 보여 주고 실패한 이름을 푸터에 표시한다. 피드를 추가하기 전에 HTTP 200, UTF-8, 요약 유무, 크기를 직접 확인한다(한겨레는 요약 없음, SBS는 790KB라 제외).
+- RSS는 정규식으로 `<item>`만 읽는다(`data/RssParser.kt`, DTD·엔티티 해석 안 함).
+- 상세는 스크롤 없이 쪽 단위다. 쪽당 글자 수는 `util/Pager.kt`의 상수(첫 쪽 200, 나머지 290, 링크 70). 바꾸면 스냅샷으로 가장 긴 제목·본문의 넘침을 확인한다.
+- 상세를 열면 연합뉴스·동아일보·경향신문은 원문 페이지에서 본문을 최대 2,400자 받는다(`data/ArticleBody.kt`, 소스별 규칙). 못 뽑으면 RSS 요약으로 폴백. 저작권은 각 언론사에 있다.

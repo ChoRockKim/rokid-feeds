@@ -1,32 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- 뉴스 RSS·기사 본문, OTA 업데이트 -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Wi-Fi 연결 화면: 연결 상태 확인, 지정한 Wi-Fi에 연결 요청 -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Wi-Fi 다시 켜기(net/WifiEnabler.kt). 주로 rokid-conversate의 "Wi-Fi 켜기 도우미" 앱으로 켠다.
+         WRITE_SECURE_SETTINGS는 선택이며 adb로만 줄 수 있다. -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <!-- WifiManager.startScan()이 요구한다. 없으면 스캔 요청이 SecurityException으로 앱을 죽인다 -->
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
-    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
-    <!--
-      Wi-Fi 목록(startScan/getScanResults)은 안드로이드 13 이상에서도 ACCESS_FINE_LOCATION이 필요하다.
-      NEARBY_WIFI_DEVICES로는 대체되지 않는다(공식 문서, 에뮬레이터 API 36에서 SecurityException으로 확인).
-      안드로이드 12+는 정밀 권한을 요청할 때 대략적 권한(COARSE)도 함께 요청해야 한다. 앱은 위치를 쓰지 않는다.
-    -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+    <!-- OTA 업데이트(update/Updater.kt) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- 업데이트 직후 백그라운드에서 앱을 다시 띄운다. adb로 허용:
+         appops set com.chorockkim.rokidfeeds SYSTEM_ALERT_WINDOW allow -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <queries>
+        <package android:name="com.chorockkim.conversate.wifihelper" />
+    </queries>
 
     <application
+        android:name=".RokidFeedsApp"
         android:allowBackup="false"
-        android:label="News Feed"
+        android:label="Rokid Feeds"
         android:theme="@android:style/Theme.Material.NoActionBar">
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation"
+            android:exported="true"
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <receiver
+            android:name=".update.InstallResultReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

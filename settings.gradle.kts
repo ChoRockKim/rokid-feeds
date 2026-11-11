@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "news-feed"
+rootProject.name = "rokid-feeds"
 include(":app")
