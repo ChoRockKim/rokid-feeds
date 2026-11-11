@@ -71,11 +71,11 @@ class MainActivity : ComponentActivity() {
     private var charging by mutableStateOf(false)
 
     /** 지금 화면(로그인 화면이면 키를 웹으로 넘긴다). */
-    private var screen = Screen.Menu
+    private var screen by mutableStateOf(Screen.Menu)
     private var threadsLoggedIn by mutableStateOf(ThreadsWeb.isLoggedIn())
     /** 폰 링크 로그인(처음 로그인 화면에 들어갈 때 만든다). */
     private var loginFlow by mutableStateOf<ThreadsLoginFlow?>(null)
-    private var threadsWeb: ThreadsWeb? = null
+    private var threadsWeb by mutableStateOf<ThreadsWeb?>(null)
     /** Threads를 처음 고를 때 만든다(WebView). 화면은 이 값이 생기면 그린다. */
     private var threadsSession by mutableStateOf<ThreadsSession?>(null)
     private lateinit var root: FrameLayout
@@ -160,8 +160,10 @@ class MainActivity : ComponentActivity() {
         checkForUpdate()
     }
 
-    /** 가운데 알약: Wi-Fi·인터넷 상태가 우선이고, 없으면 지난번 튕긴 이유. */
-    private fun notice(): String? = WifiEnabler.label(wifiStatus, online) ?: crashText
+    /** 가운데 알약: Wi-Fi·인터넷 상태가 우선, 그다음 Threads 데이터 받는 중(Threads 화면에서만), 지난번 튕긴 이유. */
+    private fun notice(): String? = WifiEnabler.label(wifiStatus, online)
+        ?: "Threads 불러오는 중…".takeIf { threadsWeb?.busy == true && screen == Screen.Threads }
+        ?: crashText
 
     override fun onStart() {
         super.onStart()

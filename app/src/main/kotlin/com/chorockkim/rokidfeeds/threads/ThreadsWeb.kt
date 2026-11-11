@@ -13,6 +13,8 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewCompat
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.webkit.WebViewFeature
 import org.json.JSONObject
 
@@ -144,9 +146,14 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
     var postActive = false
         set(value) { field = value; applyVisibility() }
 
+    /** 지금 WebView가 데이터를 받는 중인지(띠 위에 "Threads 불러오는 중…"을 띄워 잠깐 버벅여도 이유를 알게 한다). */
+    var busy by androidx.compose.runtime.mutableStateOf(false)
+        private set
+
     private fun applyVisibility() {
         feed.visibility = if (login || feedActive) android.view.View.VISIBLE else android.view.View.GONE
         post.visibility = if (postActive) android.view.View.VISIBLE else android.view.View.GONE
+        busy = feedActive || postActive
     }
 
     /** 로그인 중에는 [feed]를 계속 켜 둔다(폰에서 받은 값을 넣을 로그인 페이지). 화면에는 보이지 않고 포커스도 받지 않는다. */

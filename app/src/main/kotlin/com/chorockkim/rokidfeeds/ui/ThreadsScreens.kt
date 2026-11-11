@@ -231,10 +231,12 @@ fun ThreadCommentsScreen(
     LaunchedEffect(selected) { if (lazyThumbs) { delay(THUMB_DWELL_MS); settled = true } }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         val title = if (depth > 1) "답글" else "댓글"
-        BasicText(
-            "$title ${comments.size}" + (if (expected > comments.size) " / $expected" else "") + (if (loading) " · 불러오는 중…" else ""),
-            style = Glass.Label,
-        )
+        // 숫자 뜻을 글로: 전체 몇 개 중 몇 개를 받았는지(로그인하지 않으면 일부만 온다).
+        val count = when {
+            expected > comments.size -> "$title ${expected}개 중 ${comments.size}개 불러옴"
+            else -> "$title ${comments.size}개"
+        }
+        BasicText(count + if (loading) " · 불러오는 중…" else "", style = Glass.Label, maxLines = 1)
         Divider()
         if (comments.isEmpty()) {
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
@@ -259,7 +261,7 @@ fun ThreadCommentsScreen(
                 }
             }
         }
-        Footer("◀ ▶ 고르기 · 탭 열기 · 뒤로 글", if (comments.isEmpty()) "" else "${selected + 1}/${comments.size}")
+        Footer("◀ ▶ 고르기 · 탭 열기 · 뒤로 글", if (comments.isEmpty()) "" else "${selected + 1}번째 $title")
     }
 }
 
