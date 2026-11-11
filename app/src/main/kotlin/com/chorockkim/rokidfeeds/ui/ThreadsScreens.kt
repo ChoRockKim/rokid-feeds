@@ -172,17 +172,19 @@ fun ThreadPostScreen(
                     NameLine(page.post, now, extra = if (page.parts > 1) "이어진 글 ${page.parts - 1}개" else null)
                 }
             }
+            // 본문은 줄이지 않는다. 자리가 모자라면 사진 줄이 줄어든다(사진이 본문을 잘라 먹던 버그).
             if (page.body.isNotBlank()) {
-                BasicText(page.body, style = ThreadsText.Body.copy(fontSize = 14.sp, lineHeight = 20.sp), overflow = TextOverflow.Clip, modifier = Modifier.weight(1f, fill = false))
+                BasicText(page.body, style = ThreadsText.Body.copy(fontSize = 14.sp, lineHeight = 20.sp))
             }
             if (page.thumbs.isNotEmpty()) {
-                ThumbRow(page.thumbs, image, height = if (page.body.isBlank()) 120.dp else 72.dp)
-                BasicText("탭하면 사진 크게 (${page.photos.size}장)", style = ThreadsText.Time)
+                Box(Modifier.weight(1f, fill = false)) {
+                    ThumbRow(page.thumbs, image, height = if (page.body.isBlank()) 120.dp else 56.dp)
+                }
             }
             if (page.actions) ActionRow(page.post)
         }
         val next = if (pageIndex < pageCount - 1) "▼ 다음" else if (comments > 0) "▼ 댓글 $comments" else "▼ 끝"
-        val tap = if (page.photos.isNotEmpty()) "탭 사진" else "탭 다음"
+        val tap = if (page.photos.isNotEmpty()) "탭 사진 ${page.photos.size}장" else "탭 다음"
         Footer("◀ ▶ 위아래 · $next · $tap · 뒤로 " + if (depth > 1) "이전 글" else "목록", "${pageIndex + 1}/$pageCount")
     }
 }

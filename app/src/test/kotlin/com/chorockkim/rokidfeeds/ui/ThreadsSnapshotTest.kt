@@ -84,6 +84,30 @@ class ThreadsSnapshotTest {
     @Test
     fun threads_post_continuation() = shot { ThreadPostScreen(pages.last(), pages.lastIndex, pages.size, comments = 3, now = now, image = fakePhoto) }
 
+    private val longWithPhotos = ThreadPost(
+        "20", "LP", "photo.writer",
+        List(12) { "[예시] 사진이 붙은 긴 글의 ${it + 1}번째 문장입니다." }.joinToString(" "),
+        now - 1200, likeCount = 31, replyCount = 7, images = listOf("a", "b", "c"),
+    )
+
+    @Test
+    fun threads_post_longWithPhotos_firstPage() {
+        val p = buildPostPages(ThreadItem(longWithPhotos), null)
+        shot { ThreadPostScreen(p[0], 0, p.size, comments = 7, now = now, image = fakePhoto) }
+    }
+
+    @Test
+    fun threads_post_longWithPhotos_lastPage() {
+        val p = buildPostPages(ThreadItem(longWithPhotos), null)
+        shot { ThreadPostScreen(p.last(), p.lastIndex, p.size, comments = 7, now = now, image = fakePhoto) }
+    }
+
+    @Test
+    fun threads_post_longTextOnly_firstPage() {
+        val p = buildPostPages(ThreadItem(longWithPhotos.copy(images = emptyList(), thumbs = emptyList())), null)
+        shot { ThreadPostScreen(p[0], 0, p.size, comments = 7, now = now, image = fakePhoto) }
+    }
+
     @Test
     fun threads_photo() = shot { ThreadPhotoScreen(main, "photo", 0, 2, image = fakePhoto) }
 

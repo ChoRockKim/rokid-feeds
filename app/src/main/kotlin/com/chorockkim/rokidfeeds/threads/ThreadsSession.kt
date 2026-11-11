@@ -36,6 +36,14 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
     private var emptyMore = 0
     private var moreTimeout: Job? = null
 
+    /** 댓글 더 받는 중(한 번에 하나). 연달아 [MAX_EMPTY_MORE]번 새 댓글이 없으면 그 글은 더 시도하지 않는다. */
+    var loadingMoreReplies by mutableStateOf(false)
+        private set
+    private var emptyReplies = 0
+    private var repliesEnd = false
+    private var repliesTimeout: Job? = null
+    private var lastRepliesAt = 0L
+
     /** 연 글의 상세(글 코드별). 댓글의 답글을 보고 돌아올 때 다시 받지 않는다. */
     private val details = HashMap<String, ThreadDetail>()
     private var started = false
@@ -103,6 +111,10 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
 
     fun open(item: ThreadItem) {
         openItem = item
+        loadingMoreReplies = false
+        emptyReplies = 0
+        repliesEnd = false
+        repliesTimeout?.cancel()
         detail = details[item.head.code]
         detailTimeout?.cancel()
         if (detail != null) {
@@ -114,6 +126,28 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
         web.openPost(item.head)
         detailTimeout?.cancel()
         detailTimeout = scope.launch { delay(LOAD_TIMEOUT_MS); detailLoading = false; postDone(0) }
+    }
+
+    /** 댓글 목록 끝 근처에서: 글 페이지를 내려 다음 댓글을 받는다. 그 글 페이지가 열려 있어야 한다. */
+    fun loadMoreReplies() {
+        val item = openItem ?: return
+        if (loadingMoreReplies || repliesEnd || detailLoading) return
+        val now = System.currentTimeMillis()
+        if (now - lastRepliesAt < MORE_INTERVAL_MS) return
+        lastRepliesAt = now
+        loadingMoreReplies = true
+        // 캐시로 열었으면 글 페이지가 열려 있지 않다: 먼저 연다(처음 몇 개는 이미 있으니 다음 응답부터 더해진다).
+        if (web.post.url?.contains(item.head.code) != true) web.openPost(item.head)
+        postBusy()
+        scope.launch { delay(MORE_SCROLL_DELAY_MS * 3); web.loadMoreReplies() }
+        repliesTimeout?.cancel()
+        repliesTimeout = scope.launch {
+            delay(MORE_TIMEOUT_MS)
+            loadingMoreReplies = false
+            emptyReplies++
+            if (emptyReplies >= MAX_EMPTY_MORE) repliesEnd = true
+            postDone(0)
+        }
     }
 
     fun close() {
@@ -160,9 +194,15 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
                 scope.launch {
                     val part = withContext(Dispatchers.Default) { ThreadsParser.detailPart(json, code) }
                     if (openItem?.head?.code != code) return@launch
+                    val before = detail?.replies?.size ?: 0
                     detail = ThreadsParser.merge(detail, part, fallbackMain = item.head)?.also { details[code] = it }
                     detailLoading = false
-                    postDone()
+                    if (loadingMoreReplies && (detail?.replies?.size ?: 0) > before) {
+                        repliesTimeout?.cancel()
+                        loadingMoreReplies = false
+                        emptyReplies = 0
+                        postDone(MORE_IDLE_MS)
+                    } else postDone()
                 }
             }
         }

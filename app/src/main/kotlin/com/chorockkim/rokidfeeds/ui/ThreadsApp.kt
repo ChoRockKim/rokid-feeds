@@ -54,6 +54,15 @@ fun ThreadsApp(session: ThreadsSession, keys: Flow<NavKey>, onBack: () -> Unit) 
     val photosPerPage = pages.map { it.photos.size }
     val comments = detail?.replies.orEmpty()
 
+    // 댓글 목록 끝 두 줄 안으로 오면, 전체 댓글 수보다 적게 받았을 때 글 페이지를 내려 더 받는다.
+    val shownState = top?.let { ThreadDetailNav.normalize(it.state, photosPerPage, comments.size) }
+    LaunchedEffect(shownState?.mode, shownState?.comment, comments.size) {
+        val s = shownState ?: return@LaunchedEffect
+        if (s.mode == Mode.Comments && s.comment >= comments.size - 2 && (top?.item?.head?.replyCount ?: 0) > comments.size) {
+            session.loadMoreReplies()
+        }
+    }
+
     val onKey by rememberUpdatedState { key: NavKey ->
         val opened = stack.lastOrNull()
         when {
@@ -96,7 +105,7 @@ fun ThreadsApp(session: ThreadsSession, keys: Flow<NavKey>, onBack: () -> Unit) 
             Mode.Comments -> ThreadCommentsScreen(
                 comments = comments,
                 selected = s.comment,
-                loading = session.detailLoading,
+                loading = session.detailLoading || session.loadingMoreReplies,
                 expected = top.item.head.replyCount,
                 depth = stack.size,
             )

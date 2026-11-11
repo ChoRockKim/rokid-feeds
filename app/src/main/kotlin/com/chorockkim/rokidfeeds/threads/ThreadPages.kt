@@ -21,11 +21,14 @@ data class PostPage(
 )
 
 /** 작성자 줄이 있는 첫 쪽 / 나머지 쪽의 글자 수. */
-const val THREAD_FIRST_PAGE_CHARS = 230
+const val THREAD_FIRST_PAGE_CHARS = 200
 const val THREAD_PAGE_CHARS = 290
 
-/** 사진 줄이 있는 첫 쪽의 본문 길이(작성자 줄 + 본문 + 사진 줄 + 아이콘 줄이 띠에 들어가게). */
-const val WITH_PHOTOS_CHARS = 110
+/**
+ * 사진 줄이 있는 첫 쪽의 본문 길이. 띠 안쪽 246dp에 작성자 줄(30) + 본문 + 사진 줄(56) + 아이콘 줄 + 아래 안내가 들어가야 한다.
+ * 110자일 때 넘쳐 본문이 잘렸다(사용자 확인) → 80자(한 줄 약 30자, 3줄).
+ */
+const val WITH_PHOTOS_CHARS = 80
 
 /** 한 글에서 보여 줄 사진 수 상한. */
 const val MAX_IMAGES_PER_POST = 10

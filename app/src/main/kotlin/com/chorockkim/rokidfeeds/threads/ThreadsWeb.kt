@@ -88,6 +88,9 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
     fun openPost(item: ThreadPost) = post.loadUrl(item.url)
 
     /** 목록 페이지를 아래로 내려 다음 글을 받게 한다(사람이 스크롤하는 것과 같다). */
+    /** 글 페이지를 내려 댓글을 더 받게 한다(Threads는 글 페이지에 처음 몇 개만 넣고 나머지는 내릴 때 준다). */
+    fun loadMoreReplies() = post.evaluateJavascript("window.__rokidLoadMore && window.__rokidLoadMore()", null)
+
     fun loadMore() = feed.evaluateJavascript("window.__rokidLoadMore ? window.__rokidLoadMore() : window.scrollBy(0, document.body.scrollHeight)", null)
 
     private val mobileUserAgent = feed.settings.userAgentString
