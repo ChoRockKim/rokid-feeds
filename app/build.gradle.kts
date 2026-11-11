@@ -13,6 +13,7 @@ val appVersionCode = appVersion.split(".").map { it.toInt() }.let { (x, y, z) ->
 val releaseKeystore = providers.gradleProperty("RELEASE_KEYSTORE").orNull
 val releaseKeystorePassword = providers.gradleProperty("RELEASE_KEYSTORE_PASS").orNull
 val releaseKeyAlias = providers.gradleProperty("RELEASE_KEY_ALIAS").orNull ?: "rokidyoutube"
+val relayUrl = providers.gradleProperty("relayUrl").orNull ?: "https://server-v2-production-8f97.up.railway.app"
 // OTA: rokid-conversate 서버(server-v2)의 이 앱 폴더(update/Updater.kt).
 val updateUrl = providers.gradleProperty("updateUrl").orNull
     ?: "https://server-v2-production-8f97.up.railway.app/apps/rokid-feeds"
@@ -31,6 +32,8 @@ android {
         versionName = appVersion
 
         buildConfigField("String", "UPDATE_URL", "\"$updateUrl\"")
+        // 폰 링크 로그인 중계(rokid-conversate 서버의 /login, /relay). Threads 로그인에 쓴다.
+        buildConfigField("String", "RELAY_URL", "\"$relayUrl\"")
     }
 
     signingConfigs {

@@ -74,6 +74,8 @@ fun ThreadsFeedScreen(
     image: ImageSource = { rememberThreadImage(it) },
     /** false면 바로 썸네일을 그린다(스냅샷). */
     lazyThumbs: Boolean = true,
+    /** 더 불러올 글이 없음. */
+    atEnd: Boolean = false,
 ) {
     if (items.isEmpty()) {
         Column(Modifier.fillMaxSize()) {
@@ -116,7 +118,12 @@ fun ThreadsFeedScreen(
                 Divider()
             }
         }
-        BasicText(if (loading) "◀ ▶ 이동 · 탭 열기 · 더 불러오는 중…" else "◀ ▶ 이동 · 탭 열기 · 뒤로 메뉴", style = Glass.Caption, maxLines = 1)
+        val tail = when {
+            loading -> " · 더 불러오는 중…"
+            atEnd && selectedIndex == items.lastIndex -> " · 마지막 글입니다"
+            else -> " · 뒤로 메뉴"
+        }
+        BasicText("◀ ▶ 이동 · 탭 열기$tail", style = Glass.Caption, maxLines = 1)
     }
 }
 
@@ -204,57 +211,46 @@ fun ThreadsDetailScreen(
 }
 
 /**
- * 로그인 화면 맨 아래 줄(웹 화면은 그 위 WebView). 평소에는 조작 안내, 웹 입력칸을 골라 탭하면 **앱의 기본 입력칸**이 열린다.
- * 폰 키보드는 안드로이드 기본 입력칸에만 글자를 보내서(웹 칸에는 못 넣음) 여기서 받아 웹 칸에 넣는다. 비밀번호 칸이면 가린다.
+ * Threads 로그인: 폰에서 주소를 열고 코드와 로그인 정보를 넣으면 안경이 대신 로그인한다(rokid-conversate 서버의 /login 중계).
+ * 안경에서는 칠 것이 없다. 진행 상태(기다림 / 로그인 중 / 인증 코드 필요 / 완료 / 실패)를 보여 준다.
  */
 @Composable
-fun ThreadsLoginBar(
-    focused: String?,
-    editing: com.chorockkim.rokidfeeds.threads.LoginField?,
-    text: String,
-    onText: (String) -> Unit,
-    onDone: () -> Unit,
-) {
-    Box(Modifier.fillMaxSize()) {
-        Column(Modifier.align(Alignment.BottomStart).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            if (editing == null) {
-                BasicText(
-                    "◀ ▶ 칸 이동 · 탭: 입력칸이면 폰 키보드로 입력, 버튼이면 누르기 · 뒤로 메뉴",
-                    style = Glass.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-                BasicText(focused?.takeIf { it.isNotBlank() }?.let { "고른 칸: $it" } ?: "칸을 고르세요", style = Glass.BodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            } else {
-                BasicText(
-                    (editing.label.ifBlank { if (editing.password) "비밀번호" else "입력" }) + " · 폰 키보드로 입력 후 완료(Enter) · 뒤로 취소",
-                    style = Glass.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-                val focus = remember { androidx.compose.ui.focus.FocusRequester() }
-                val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
-                LaunchedEffect(editing) { focus.requestFocus(); keyboard?.show() }
-                androidx.compose.foundation.text.BasicTextField(
-                    value = text,
-                    onValueChange = onText,
-                    singleLine = true,
-                    textStyle = Glass.Body,
-                    cursorBrush = androidx.compose.ui.graphics.SolidColor(Glass.Primary),
-                    visualTransformation = if (editing.password) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = if (editing.password) androidx.compose.ui.text.input.KeyboardType.Password else androidx.compose.ui.text.input.KeyboardType.Email,
-                        imeAction = androidx.compose.ui.text.input.ImeAction.Done,
-                        autoCorrectEnabled = false,
-                    ),
-                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { onDone() }),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focus)
-                        .onPreviewKeyEvent { e ->
-                            // 폰 키보드가 IME 동작 대신 Enter 키를 보낼 때도 완료로.
-                            if (e.type == KeyEventType.KeyDown && (e.key == Key.Enter || e.key == Key.NumPadEnter)) { onDone(); true } else false
-                        }
-                        .border(1.dp, Glass.Primary, RoundedCornerShape(8.dp))
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
-                )
+fun ThreadsLoginScreen(ui: com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui?) {
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        BasicText("Threads 로그인 · 폰에서", style = Glass.Heading)
+        when (ui) {
+            null, is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Starting -> BasicText("준비 중…", style = Glass.Body)
+            is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Waiting -> {
+                CodeBlock(ui.url, ui.code)
+                BasicText(ui.error?.let { "다시 보내 주세요 · $it" } ?: "폰에서 위 주소를 열고 코드와 아이디·비밀번호를 넣으세요", style = Glass.BodySmall, maxLines = 2)
+            }
+            is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.LoggingIn -> {
+                CodeBlock(ui.url, ui.code)
+                BasicText("로그인하는 중…", style = Glass.Body)
+            }
+            is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.NeedCode -> {
+                CodeBlock(ui.url, ui.code)
+                BasicText("인증 코드가 필요합니다 · 폰 화면에 코드를 넣으세요", style = Glass.Body, maxLines = 2)
+                BasicText(ui.label, style = Glass.BodySmall, maxLines = 1)
+            }
+            is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Done -> BasicText("로그인 완료 · 뒤로를 누르면 메뉴로 갑니다", style = Glass.Body)
+            is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Failed -> {
+                BasicText(ui.message, style = Glass.Body, maxLines = 3)
+                BasicText("탭: 다시 시도", style = Glass.Label)
             }
         }
+        Column(Modifier.weight(1f)) {}
+        BasicText("뒤로: 메뉴 · 비밀번호는 안경·서버에 저장하지 않습니다", style = Glass.Caption, maxLines = 1)
+    }
+}
+
+@Composable
+private fun CodeBlock(url: String, code: String) {
+    Column(
+        Modifier.fillMaxWidth().border(1.dp, Glass.Primary40, RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        BasicText(url, style = Glass.BodySmall, maxLines = 2)
+        BasicText(code.chunked(3).joinToString(" "), style = Glass.Heading.copy(fontSize = 34.sp, letterSpacing = 4.sp))
     }
 }

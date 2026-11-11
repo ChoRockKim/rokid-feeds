@@ -91,6 +91,12 @@ fun ThreadsApp(session: ThreadsSession, keys: Flow<NavKey>, onBack: () -> Unit) 
             depth = stack.size,
         )
     } else {
-        ThreadsFeedScreen(items = items, selectedIndex = shownList.selected, loading = session.feedLoading, loggedIn = session.loggedIn)
+        ThreadsFeedScreen(
+            items = items,
+            selectedIndex = shownList.selected,
+            loading = session.feedLoading || session.loadingMore,
+            loggedIn = session.loggedIn,
+            atEnd = session.feedEnd,
+        )
     }
 }

@@ -34,7 +34,8 @@ import com.chorockkim.rokidfeeds.net.WifiEnabler
 import com.chorockkim.rokidfeeds.ui.GlassScreen
 import com.chorockkim.rokidfeeds.ui.Glass
 import com.chorockkim.rokidfeeds.nav.Screen
-import com.chorockkim.rokidfeeds.threads.LoginField
+import com.chorockkim.rokidfeeds.threads.LoginRelay
+import com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow
 import com.chorockkim.rokidfeeds.threads.ThreadsSession
 import com.chorockkim.rokidfeeds.threads.ThreadsWeb
 import com.chorockkim.rokidfeeds.ui.AppRoot
@@ -72,10 +73,8 @@ class MainActivity : ComponentActivity() {
     /** 지금 화면(로그인 화면이면 키를 웹으로 넘긴다). */
     private var screen = Screen.Menu
     private var threadsLoggedIn by mutableStateOf(ThreadsWeb.isLoggedIn())
-    private var loginFocus by mutableStateOf<String?>(null)
-    /** 로그인 화면에서 앱 입력칸이 열려 있으면 그 웹 칸 정보. 폰 키보드 글자를 여기서 받아 웹 칸에 넣는다. */
-    private var loginEditing by mutableStateOf<LoginField?>(null)
-    private var loginText by mutableStateOf("")
+    /** 폰 링크 로그인(처음 로그인 화면에 들어갈 때 만든다). */
+    private var loginFlow by mutableStateOf<ThreadsLoginFlow?>(null)
     private var threadsWeb: ThreadsWeb? = null
     /** Threads를 처음 고를 때 만든다(WebView). 화면은 이 값이 생기면 그린다. */
     private var threadsSession by mutableStateOf<ThreadsSession?>(null)
@@ -130,19 +129,15 @@ class MainActivity : ComponentActivity() {
                         onScreen = ::onScreen,
                         onLogout = ::logout,
                         onExit = { finish() },
-                        loginFocus = loginFocus,
-                        loginEditing = loginEditing,
-                        loginText = loginText,
-                        onLoginText = { loginText = it },
-                        onLoginDone = ::submitLoginText,
+                        login = loginFlow?.ui,
+                        onLoginRetry = { loginFlow?.start() },
                     )
                 }
             }
         }
         ringTarget = RingTarget(this) { action ->
-            if (screen == Screen.ThreadsLogin) loginAction(action) else action.toNavKey()?.let(keys::trySend)
+            action.toNavKey()?.let(keys::trySend)
         }
-        ringTarget.keepFocus = { screen != Screen.ThreadsLogin }
         root = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
             addView(compose, FrameLayout.LayoutParams(-1, -1))
@@ -153,8 +148,7 @@ class MainActivity : ComponentActivity() {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                // 로그인 화면에서 앱 입력칸이 열려 있으면 입력만 취소한다.
-                if (loginEditing != null) cancelLoginText() else keys.trySend(NavKey.Back)
+                keys.trySend(NavKey.Back)
             }
         })
 
@@ -204,65 +198,11 @@ class MainActivity : ComponentActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         // 뒤로는 시스템 Back으로 받아 onBackPressedDispatcher가 넘긴다.
         if (event.keyCode == KeyEvent.KEYCODE_BACK) return super.dispatchKeyEvent(event)
-        if (screen == Screen.ThreadsLogin) return dispatchLoginKey(event)
         val action = input.map(event)
         if (action == GlassesInput.Action.DUPLICATE) return true
         val key = action.toNavKey() ?: return super.dispatchKeyEvent(event)
         keys.trySend(key)
         return true
-    }
-
-    /**
-     * 로그인 화면: 쓸기(방향 키·183/184·링) = 입력칸·버튼 이동, 탭(ENTER·DPAD 가운데·202·링) = 누르기.
-     * 그 밖의 키(글자·스페이스 등 폰 키보드가 보내는 것)는 포커스된 웹 입력칸으로 그대로 보낸다.
-     */
-    private fun dispatchLoginKey(event: KeyEvent): Boolean {
-        // 앱 입력칸이 열려 있으면 모든 키(글자·Enter)는 그 칸으로.
-        if (loginEditing != null) return super.dispatchKeyEvent(event)
-        if (threadsWeb == null || event.keyCode !in LOGIN_NAV_KEYS) return super.dispatchKeyEvent(event)
-        loginAction(input.map(event))
-        return true
-    }
-
-    private fun loginAction(action: GlassesInput.Action) {
-        val web = threadsWeb ?: return
-        if (loginEditing != null) {
-            when (action) {
-                GlassesInput.Action.SELECT -> submitLoginText()
-                GlassesInput.Action.BACK -> cancelLoginText()
-                else -> Unit
-            }
-            return
-        }
-        when (action) {
-            GlassesInput.Action.PREVIOUS, GlassesInput.Action.UP -> web.focus(-1) { loginFocus = it }
-            GlassesInput.Action.NEXT, GlassesInput.Action.DOWN -> web.focus(1) { loginFocus = it }
-            // 입력칸이면 앱 입력칸을 열고(폰 키보드), 버튼이면 누른다.
-            GlassesInput.Action.SELECT -> web.focusedInput { field ->
-                if (field != null) {
-                    loginText = ""
-                    loginEditing = field
-                } else web.click()
-            }
-            GlassesInput.Action.BACK -> keys.trySend(NavKey.Back)
-            else -> Unit
-        }
-    }
-
-    /** 앱 입력칸의 글자를 고른 웹 칸에 넣고, 다음 칸으로 옮긴다. 글자는 바로 지운다(비밀번호를 앱에 남기지 않음). */
-    private fun submitLoginText() {
-        val web = threadsWeb ?: return
-        val text = loginText
-        loginText = ""
-        loginEditing = null
-        web.feed.requestFocus()
-        web.setFocusedValue(text) { web.focus(1) { loginFocus = it } }
-    }
-
-    private fun cancelLoginText() {
-        loginText = ""
-        loginEditing = null
-        threadsWeb?.feed?.requestFocus()
     }
 
     // endregion
@@ -285,29 +225,19 @@ class MainActivity : ComponentActivity() {
         return session
     }
 
-    /** 평소 WebView 자리: 띠 안(안내 줄 위). */
+    /** WebView 자리: 띠와 같은 자리(Compose 화면 뒤라 보이지 않는다). */
     private fun bandParams(): FrameLayout.LayoutParams {
         val density = resources.displayMetrics.density
         return FrameLayout.LayoutParams(
             ((Glass.WIDTH_DP - 2) * density).toInt(),
-            ((Glass.HEIGHT_DP - LOGIN_HINT_DP) * density).toInt(),
+            (Glass.HEIGHT_DP * density).toInt(),
             Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
-        ).apply { bottomMargin = (LOGIN_HINT_DP * density).toInt() }
+        )
     }
-
-    /**
-     * 로그인할 때 WebView 자리: 화면 세로 전체(맨 아래 안내 한 줄만 남김). 띠 높이(282)로는 로그인 페이지의 창·팝업이
-     * 입력칸을 가려 로그인할 수 없었다.
-     */
-    private fun loginParams(): FrameLayout.LayoutParams =
-        FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT).apply {
-            bottomMargin = (LOGIN_HINT_DP * resources.displayMetrics.density).toInt()
-        }
 
     private fun onScreen(next: Screen) {
         val previous = screen
         screen = next
-        val web = threadsWeb
         val threadsScreen = next == Screen.Threads || next == Screen.ThreadsLogin
         if (threadsScreen) threads()
         threadsWeb?.let { w ->
@@ -316,20 +246,14 @@ class MainActivity : ComponentActivity() {
             w.setLoginMode(next == Screen.ThreadsLogin)
         }
         if (next == Screen.ThreadsLogin) {
-            val feed = threadsWeb!!.feed
-            loginFocus = null
-            threadsWeb!!.openLogin()
-            feed.layoutParams = loginParams()
-            feed.translationZ = LOGIN_Z
-            feed.requestFocus() // 폰 키보드 글자가 웹 입력칸으로 가도록
-        } else if (web != null) {
-            if (web.feed.translationZ != 0f) web.feed.layoutParams = bandParams()
-            web.feed.translationZ = 0f
-            ringTarget.requestFocus()
+            val flow = loginFlow ?: ThreadsLoginFlow(threadsWeb!!, LoginRelay(BuildConfig.RELAY_URL), lifecycleScope) {
+                threadsLoggedIn = true
+            }.also { loginFlow = it }
+            flow.start()
         }
+        ringTarget.requestFocus()
         if (previous == Screen.ThreadsLogin && next != Screen.ThreadsLogin) {
-            loginText = ""
-            loginEditing = null
+            loginFlow?.stop()
             threadsWeb?.endLogin()
             threadsLoggedIn = ThreadsWeb.isLoggedIn()
             threadsSession?.afterLogin()
@@ -447,15 +371,5 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val CRASH_NOTICE_MS = 15_000L
-        /** 로그인 화면에서 웹 아래에 남겨 두는 안내 줄 높이. */
-        const val LOGIN_HINT_DP = 70
-        /** 로그인 화면에서 웹을 Compose 화면 위로 꺼내는 높이. */
-        const val LOGIN_Z = 10f
-        val LOGIN_NAV_KEYS = setOf(
-            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
-            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER,
-            GlassesInput.KEYCODE_ROKID_NEXT, GlassesInput.KEYCODE_ROKID_PREVIOUS, GlassesInput.KEYCODE_ROKID_DOUBLE_TAP,
-            KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_MEDIA_PREVIOUS, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
-        )
     }
 }

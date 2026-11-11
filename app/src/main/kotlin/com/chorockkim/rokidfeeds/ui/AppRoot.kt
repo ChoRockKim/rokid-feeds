@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * 앱의 맨 위: 메인 메뉴 → 뉴스 / Threads / Threads 로그인. 한 번에 한 화면만 그려지고 그 화면만 [keys]를 받는다.
- * [threads]는 Activity가 처음 Threads를 고를 때 만든다(WebView를 쓰므로). 만들어지기 전 한 프레임은 불러오는 중으로 그린다. [onScreen]은 Activity가 로그인 화면에서 키를 웹으로 넘기려고 받는다.
+ * [threads]는 Activity가 처음 Threads를 고를 때 만든다(WebView를 쓰므로). 만들어지기 전 한 프레임은 불러오는 중으로 그린다. [onScreen]은 Activity가 화면에 맞춰 WebView·로그인 흐름을 켜고 끄려고 받는다.
  */
 @Composable
 fun AppRoot(
@@ -29,11 +29,8 @@ fun AppRoot(
     onScreen: (Screen) -> Unit,
     onLogout: () -> Unit,
     onExit: () -> Unit,
-    loginFocus: String?,
-    loginEditing: com.chorockkim.rokidfeeds.threads.LoginField? = null,
-    loginText: String = "",
-    onLoginText: (String) -> Unit = {},
-    onLoginDone: () -> Unit = {},
+    login: com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui?,
+    onLoginRetry: () -> Unit,
 ) {
     var app by rememberSaveable(stateSaver = AppStateSaver) { mutableStateOf(AppState()) }
     LaunchedEffect(app.screen) { onScreen(app.screen) }
@@ -60,10 +57,16 @@ fun AppRoot(
             LoadingView()
         }
         Screen.ThreadsLogin -> {
-            // 쓸기·탭은 Activity가 웹으로 바로 넘기고, 여기로는 뒤로만 온다.
-            val onKey by rememberUpdatedState { key: NavKey -> if (key == NavKey.Back) toMenu() }
+            // 뒤로 = 메뉴, 탭 = (실패했으면) 새 코드로 다시 시작.
+            val onKey by rememberUpdatedState { key: NavKey ->
+                when (key) {
+                    NavKey.Back -> toMenu()
+                    NavKey.Select -> if (login is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Failed) onLoginRetry()
+                    else -> Unit
+                }
+            }
             LaunchedEffect(keys) { keys.collect { onKey(it) } }
-            ThreadsLoginBar(loginFocus, loginEditing, loginText, onLoginText, onLoginDone)
+            ThreadsLoginScreen(login)
         }
     }
 }

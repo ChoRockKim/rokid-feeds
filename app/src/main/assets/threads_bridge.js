@@ -108,28 +108,84 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();
 
-// 로그인 화면: 폰 키보드는 안드로이드 기본 입력칸에만 글자를 보내고 웹 입력칸에는 못 넣는다(2026-11-11 사용자 확인).
-// 그래서 앱의 기본 입력칸에서 받은 글자를 지금 고른 웹 입력칸에 넣는다. React 페이지라 value를 직접 바꾸면 무시되므로
+// 폰 링크 로그인(rokid-conversate 서버의 /login 중계): 폰에서 받은 아이디·비밀번호·인증 코드를 threads.com 로그인 폼에 넣고 누른다.
+// 로그인 페이지는 데스크톱 화면(아이디·비밀번호 칸이 바로 있음, 2026-11-11 확인). React 페이지라 value를 직접 바꾸면 무시되므로
 // 입력칸 원래의 value setter로 넣고 input/change 이벤트를 보낸다.
 (function () {
-  if (window.__rokidSetValue) return;
-  function target() {
-    var el = document.querySelector('[data-rokid-focus]') || document.activeElement;
-    return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') ? el : null;
+  if (window.__rokidLogin) return;
+  function visible(el) {
+    var r = el.getBoundingClientRect();
+    var s = getComputedStyle(el);
+    return r.width > 4 && r.height > 4 && s.visibility !== 'hidden' && s.display !== 'none' && !el.disabled;
   }
-  /** 고른 칸이 입력칸이면 {"type":"password","label":"비밀번호"}, 아니면 "". */
-  window.__rokidFocusInfo = function () {
-    var el = target();
-    if (!el) return '';
-    return JSON.stringify({ type: el.type || 'text', label: (el.getAttribute('aria-label') || el.placeholder || el.name || '').slice(0, 40) });
-  };
-  window.__rokidSetValue = function (text) {
-    var el = target();
-    if (!el) return false;
+  function inputs() {
+    return Array.prototype.filter.call(document.querySelectorAll('input:not([type=hidden]):not([type=submit]):not([type=checkbox])'), visible);
+  }
+  function setValue(el, text) {
     var proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
     Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, text);
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  function press(form, words) {
+    var buttons = Array.prototype.filter.call(document.querySelectorAll('button, [type=submit], [role=button]'), visible);
+    var b = buttons.find(function (x) { return words.test((x.innerText || x.value || '').trim()); });
+    if (b) { b.click(); return true; }
+    if (form && form.requestSubmit) { form.requestSubmit(); return true; }
+    return false;
+  }
+  function label(el) { return (el.getAttribute('aria-label') || el.placeholder || el.name || '').slice(0, 60); }
+  window.__rokidLogin = function (user, pass) {
+    var list = inputs();
+    var p = list.find(function (x) { return x.type === 'password'; });
+    var u = list.find(function (x) { return x.autocomplete === 'username' || x.name === 'username'; }) ||
+      list.find(function (x) { return x !== p && (x.type === 'text' || x.type === 'email' || x.type === 'tel'); });
+    if (!u || !p) return JSON.stringify({ ok: false, why: 'no-form' });
+    setValue(u, user);
+    setValue(p, pass);
+    setTimeout(function () { press(p.form, /^(로그인|Log in|Log In)$/); }, 300);
+    return JSON.stringify({ ok: true });
+  };
+  /** 로그인 뒤 페이지 상태: 인증 코드 칸이 있는지, 오류 문구가 있는지. */
+  window.__rokidLoginState = function () {
+    var list = inputs();
+    var loginForm = list.some(function (x) { return x.type === 'password'; });
+    var code = loginForm ? null : list.find(function (x) { return x.type !== 'password'; });
+    var alert = document.querySelector('[role=alert]');
+    var error = alert && alert.innerText.trim();
+    if (!error) {
+      var m = (document.body.innerText || '').match(/[^\n]*(잘못|올바르지|다시 시도|incorrect|wrong|try again|문제가 발생)[^\n]*/i);
+      error = m ? m[0].trim() : '';
+    }
+    return JSON.stringify({ loginForm: loginForm, code: code ? (label(code) || '인증 코드') : null, error: (error || '').slice(0, 120) });
+  };
+  window.__rokidFillCode = function (text) {
+    var list = inputs().filter(function (x) { return x.type !== 'password'; });
+    var el = list.find(function (x) { return x.autocomplete === 'one-time-code' || /code|코드/i.test(x.name + label(x)); }) || list[0];
+    if (!el) return false;
+    setValue(el, text);
+    setTimeout(function () { press(el.form, /^(확인|Confirm|다음|Next|제출|Submit|계속|Continue)$/); }, 300);
     return true;
   };
 })();
+
+// 목록 더 불러오기: threads.com은 창이 아니라 안쪽 상자가 스크롤되기도 한다. 마지막 글을 화면에 올리고,
+// 스크롤되는 상자와 창을 모두 끝까지 내린다. 돌려주는 값은 지금 페이지의 글 링크 수(디버그용).
+window.__rokidLoadMore = function () {
+  var links = document.querySelectorAll('a[href*="/post/"]');
+  var last = links[links.length - 1];
+  if (last && last.scrollIntoView) last.scrollIntoView({ block: 'end' });
+  var boxes = [document.scrollingElement];
+  var divs = document.querySelectorAll('div');
+  for (var i = 0; i < divs.length; i++) {
+    var d = divs[i];
+    if (d.scrollHeight > d.clientHeight + 20) {
+      var o = getComputedStyle(d).overflowY;
+      if (o === 'auto' || o === 'scroll') boxes.push(d);
+    }
+  }
+  boxes.forEach(function (b) { if (b) b.scrollTop = b.scrollHeight; });
+  window.scrollTo(0, document.scrollingElement.scrollHeight);
+  window.dispatchEvent(new Event('scroll'));
+  return links.length;
+};

@@ -14,6 +14,7 @@ import android.webkit.WebViewClient
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
+import org.json.JSONObject
 
 /**
  * threads.com을 여는 WebView 두 개(목록·로그인용 [feed], 글 상세용 [post]). 보통은 화면에 보이지 않고, 페이지에 넣은
@@ -34,7 +35,7 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
 
     private fun create(context: Context, source: Source): WebView = WebView(context).apply {
         setBackgroundColor(Color.BLACK)
-        // 보이지 않게 돌 때는 포커스를 받지 않는다(링 노드에서 포커스를 뺏으면 R08 링 입력이 먹지 않는다). 로그인 때만 켠다.
+        // 포커스를 받지 않는다(링 노드에서 포커스를 뺏으면 R08 링 입력이 먹지 않는다).
         setInputEnabled(this, false)
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
@@ -88,13 +89,7 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
     fun openPost(item: ThreadPost) = post.loadUrl(item.url)
 
     /** 목록 페이지를 아래로 내려 다음 글을 받게 한다(사람이 스크롤하는 것과 같다). */
-    fun loadMore() = feed.evaluateJavascript("window.scrollBy(0, document.body.scrollHeight)", null)
-
-    /** 로그인 화면: 쓸기로 입력칸·버튼 이동, 탭으로 누르기. 결과(포커스된 줄 이름)를 돌려준다. */
-    fun focus(delta: Int, result: (String) -> Unit) =
-        feed.evaluateJavascript("window.__rokidFocus ? window.__rokidFocus($delta) : ''") { result(it.trim('"')) }
-
-    fun click() = feed.evaluateJavascript("window.__rokidClick && window.__rokidClick()", null)
+    fun loadMore() = feed.evaluateJavascript("window.__rokidLoadMore ? window.__rokidLoadMore() : window.scrollBy(0, document.body.scrollHeight)", null)
 
     private val mobileUserAgent = feed.settings.userAgentString
 
@@ -112,17 +107,26 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
         feed.settings.userAgentString = mobileUserAgent
     }
 
-    /** 지금 고른 웹 칸이 입력칸이면 그 정보(비밀번호인지, 이름표), 아니면 null. */
-    fun focusedInput(result: (LoginField?) -> Unit) =
-        feed.evaluateJavascript("window.__rokidFocusInfo ? window.__rokidFocusInfo() : ''") { raw ->
-            result(LoginField.parse(raw))
-        }
+    /** 로그인 폼에 넣고 누른다. 폼이 없으면 false. */
+    suspend fun submitLogin(username: String, password: String): Boolean =
+        eval("window.__rokidLogin ? window.__rokidLogin(${JSONObject.quote(username)}, ${JSONObject.quote(password)}) : ''")
+            .let { raw -> runCatching { JSONObject(unquote(raw)).optBoolean("ok") }.getOrDefault(false) }
 
-    /** 앱 입력칸에서 받은 글자를 고른 웹 입력칸에 넣는다. */
-    fun setFocusedValue(text: String, done: (Boolean) -> Unit) =
-        feed.evaluateJavascript("window.__rokidSetValue ? window.__rokidSetValue(${org.json.JSONObject.quote(text)}) : false") {
-            done(it == "true")
-        }
+    /** 인증 코드 칸에 넣고 누른다. */
+    suspend fun submitCode(text: String): Boolean =
+        eval("window.__rokidFillCode ? window.__rokidFillCode(${JSONObject.quote(text)}) : false") == "true"
+
+    data class LoginState(val loginForm: Boolean, val code: String?, val error: String)
+
+    /** 누른 뒤의 페이지: 로그인 폼이 아직 있는지, 인증 코드 칸(이름표), 오류 문구. 페이지가 바뀌는 중이면 null. */
+    suspend fun loginState(): LoginState? = runCatching {
+        val o = JSONObject(unquote(eval("window.__rokidLoginState ? window.__rokidLoginState() : ''")))
+        LoginState(o.optBoolean("loginForm"), o.optString("code").takeIf { it.isNotEmpty() && it != "null" }, o.optString("error"))
+    }.getOrNull()
+
+    private suspend fun eval(js: String): String = kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+        feed.evaluateJavascript(js) { if (cont.isActive) cont.resumeWith(Result.success(it ?: "")) }
+    }
 
     fun destroy() {
         feed.destroy()
@@ -145,10 +149,9 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
         post.visibility = if (postActive) android.view.View.VISIBLE else android.view.View.GONE
     }
 
-    /** 로그인 화면(웹에 직접 입력)일 때만 [feed]를 계속 켜 두고 포커스를 받게 한다. */
+    /** 로그인 중에는 [feed]를 계속 켜 둔다(폰에서 받은 값을 넣을 로그인 페이지). 화면에는 보이지 않고 포커스도 받지 않는다. */
     fun setLoginMode(on: Boolean) {
         login = on
-        setInputEnabled(feed, on)
         applyVisibility()
     }
 
@@ -191,6 +194,10 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
 
         private fun isAllowed(uri: Uri): Boolean = isThreads(uri) ||
             (uri.scheme == "https" && (uri.host == "instagram.com" || uri.host?.endsWith(".instagram.com") == true))
+
+        /** evaluateJavascript가 돌려준 JSON 문자열 값("\"{...}\"")을 벗긴다. */
+        fun unquote(raw: String): String =
+            if (raw.startsWith("\"")) org.json.JSONTokener(raw).nextValue() as? String ?: "" else raw
 
         /** "Mozilla/5.0 (Linux; Android 12; …) … Chrome/124 Mobile Safari/537.36" → 같은 Chrome의 데스크톱 리눅스 UA. */
         fun desktopUserAgent(mobile: String): String =

@@ -79,10 +79,12 @@ class ThreadsSnapshotTest {
     fun threads_detail_reply() = shot { ThreadsDetailScreen(pages, pageIndex = pages.indexOfFirst { it is com.chorockkim.rokidfeeds.threads.ThreadPage.Replies }, selectedReply = 1, now = now, image = fakePhoto) }
 
     @Test
-    fun threads_login_hint() = shot { ThreadsLoginBar("사용자 이름, 전화번호 또는 이메일 주소", null, "", {}, {}) }
+    fun threads_login_waiting() = shot {
+        ThreadsLoginScreen(com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Waiting("server-v2-production-8f97.up.railway.app/login", "482913"))
+    }
 
     @Test
-    fun threads_login_typing_password() = shot {
-        ThreadsLoginBar("비밀번호", com.chorockkim.rokidfeeds.threads.LoginField(password = true, label = "비밀번호"), "secret", {}, {})
+    fun threads_login_needCode() = shot {
+        ThreadsLoginScreen(com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.NeedCode("server-v2-production-8f97.up.railway.app/login", "482913", "보안 코드"))
     }
 }
