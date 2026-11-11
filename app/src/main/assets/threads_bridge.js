@@ -71,3 +71,39 @@
     return true;
   };
 })();
+
+// "앱에서 더 편리하게 이용해보세요 · 앱 다운로드" 같은 앱 설치 권유 띠가 작은 화면을 가린다(2026-11-11 확인, 높이의 약 40%).
+// 화면에 고정된(fixed/sticky) 요소 중 권유 문구가 있고, 입력칸·로그인 버튼이 없고, 화면 60%보다 작은 것만 숨긴다.
+// 로그인 길("Instagram으로 계속하기"가 든 창)은 건드리지 않는다.
+(function () {
+  if (window.__rokidHidePromos) return;
+  var PROMO = /앱 다운로드|앱에서 더 편리하게|앱에서 더 많은 기능|앱에서 열기|앱 열기|앱 사용하기|Threads 열기|Get app|Get the app|better in the app|Download the app|Download Threads|Open app|Open in app|Use the app|Open Threads/i;
+  var KEEP = /Instagram으로 계속|Continue with Instagram|로그인|Log in/i;
+  function hide() {
+    var limit = window.innerHeight * 0.6;
+    var all = document.querySelectorAll('body *');
+    for (var i = 0; i < all.length; i++) {
+      var el = all[i];
+      if (el.__rokidHidden) continue;
+      var s = getComputedStyle(el);
+      if (s.position !== 'fixed' && s.position !== 'sticky') continue;
+      var text = el.innerText || '';
+      if (!PROMO.test(text) || KEEP.test(text) || el.querySelector('input, textarea')) continue;
+      if (el.getBoundingClientRect().height > limit) continue;
+      el.__rokidHidden = true;
+      el.style.setProperty('display', 'none', 'important');
+    }
+  }
+  var pending = false;
+  function schedule() {
+    if (pending) return;
+    pending = true;
+    setTimeout(function () { pending = false; try { hide(); } catch (e) {} }, 300);
+  }
+  window.__rokidHidePromos = hide;
+  function start() {
+    schedule();
+    new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+})();
