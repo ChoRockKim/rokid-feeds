@@ -30,6 +30,12 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -197,16 +203,58 @@ fun ThreadsDetailScreen(
     }
 }
 
-/** 로그인 화면 위에 겹치는 안내(웹 화면은 그 아래 WebView). */
+/**
+ * 로그인 화면 맨 아래 줄(웹 화면은 그 위 WebView). 평소에는 조작 안내, 웹 입력칸을 골라 탭하면 **앱의 기본 입력칸**이 열린다.
+ * 폰 키보드는 안드로이드 기본 입력칸에만 글자를 보내서(웹 칸에는 못 넣음) 여기서 받아 웹 칸에 넣는다. 비밀번호 칸이면 가린다.
+ */
 @Composable
-fun ThreadsLoginHint(focused: String?) {
+fun ThreadsLoginBar(
+    focused: String?,
+    editing: com.chorockkim.rokidfeeds.threads.LoginField?,
+    text: String,
+    onText: (String) -> Unit,
+    onDone: () -> Unit,
+) {
     Box(Modifier.fillMaxSize()) {
-        BasicText(
-            "◀ ▶ 칸 이동 · 탭 누르기 · 글자는 폰 키보드 · 뒤로 메뉴" + (focused?.takeIf { it.isNotBlank() }?.let { "  [$it]" } ?: ""),
-            style = Glass.Caption,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.align(Alignment.BottomStart),
-        )
+        Column(Modifier.align(Alignment.BottomStart).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            if (editing == null) {
+                BasicText(
+                    "◀ ▶ 칸 이동 · 탭: 입력칸이면 폰 키보드로 입력, 버튼이면 누르기 · 뒤로 메뉴",
+                    style = Glass.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                BasicText(focused?.takeIf { it.isNotBlank() }?.let { "고른 칸: $it" } ?: "칸을 고르세요", style = Glass.BodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            } else {
+                BasicText(
+                    (editing.label.ifBlank { if (editing.password) "비밀번호" else "입력" }) + " · 폰 키보드로 입력 후 완료(Enter) · 뒤로 취소",
+                    style = Glass.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+                val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+                LaunchedEffect(editing) { focus.requestFocus(); keyboard?.show() }
+                androidx.compose.foundation.text.BasicTextField(
+                    value = text,
+                    onValueChange = onText,
+                    singleLine = true,
+                    textStyle = Glass.Body,
+                    cursorBrush = androidx.compose.ui.graphics.SolidColor(Glass.Primary),
+                    visualTransformation = if (editing.password) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = if (editing.password) androidx.compose.ui.text.input.KeyboardType.Password else androidx.compose.ui.text.input.KeyboardType.Email,
+                        imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+                        autoCorrectEnabled = false,
+                    ),
+                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { onDone() }),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focus)
+                        .onPreviewKeyEvent { e ->
+                            // 폰 키보드가 IME 동작 대신 Enter 키를 보낼 때도 완료로.
+                            if (e.type == KeyEventType.KeyDown && (e.key == Key.Enter || e.key == Key.NumPadEnter)) { onDone(); true } else false
+                        }
+                        .border(1.dp, Glass.Primary, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+            }
+        }
     }
 }

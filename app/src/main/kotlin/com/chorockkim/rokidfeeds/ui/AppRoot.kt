@@ -30,6 +30,10 @@ fun AppRoot(
     onLogout: () -> Unit,
     onExit: () -> Unit,
     loginFocus: String?,
+    loginEditing: com.chorockkim.rokidfeeds.threads.LoginField? = null,
+    loginText: String = "",
+    onLoginText: (String) -> Unit = {},
+    onLoginDone: () -> Unit = {},
 ) {
     var app by rememberSaveable(stateSaver = AppStateSaver) { mutableStateOf(AppState()) }
     LaunchedEffect(app.screen) { onScreen(app.screen) }
@@ -59,7 +63,7 @@ fun AppRoot(
             // 쓸기·탭은 Activity가 웹으로 바로 넘기고, 여기로는 뒤로만 온다.
             val onKey by rememberUpdatedState { key: NavKey -> if (key == NavKey.Back) toMenu() }
             LaunchedEffect(keys) { keys.collect { onKey(it) } }
-            ThreadsLoginHint(loginFocus)
+            ThreadsLoginBar(loginFocus, loginEditing, loginText, onLoginText, onLoginDone)
         }
     }
 }

@@ -90,7 +90,33 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
 
     fun click() = feed.evaluateJavascript("window.__rokidClick && window.__rokidClick()", null)
 
-    fun openLogin() = feed.loadUrl(LOGIN)
+    private val mobileUserAgent = feed.settings.userAgentString
+
+    /**
+     * 로그인 페이지. 모바일로 열면 "Instagram으로 계속하기"만 있고 인스타그램 앱·웹으로 넘어가야 하지만, 데스크톱으로 열면
+     * threads.com에 아이디·비밀번호 칸이 바로 있다(2026-11-11 확인). 그래서 로그인할 때만 데스크톱 UA로 연다.
+     */
+    fun openLogin() {
+        feed.settings.userAgentString = desktopUserAgent(mobileUserAgent)
+        feed.loadUrl(LOGIN)
+    }
+
+    /** 로그인 화면을 나가면 원래(모바일) UA로. 글 데이터 모양은 모바일 UA에서 확인했다. */
+    fun endLogin() {
+        feed.settings.userAgentString = mobileUserAgent
+    }
+
+    /** 지금 고른 웹 칸이 입력칸이면 그 정보(비밀번호인지, 이름표), 아니면 null. */
+    fun focusedInput(result: (LoginField?) -> Unit) =
+        feed.evaluateJavascript("window.__rokidFocusInfo ? window.__rokidFocusInfo() : ''") { raw ->
+            result(LoginField.parse(raw))
+        }
+
+    /** 앱 입력칸에서 받은 글자를 고른 웹 입력칸에 넣는다. */
+    fun setFocusedValue(text: String, done: (Boolean) -> Unit) =
+        feed.evaluateJavascript("window.__rokidSetValue ? window.__rokidSetValue(${org.json.JSONObject.quote(text)}) : false") {
+            done(it == "true")
+        }
 
     fun destroy() {
         feed.destroy()
@@ -116,6 +142,10 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
 
         private fun isAllowed(uri: Uri): Boolean = isThreads(uri) ||
             (uri.scheme == "https" && (uri.host == "instagram.com" || uri.host?.endsWith(".instagram.com") == true))
+
+        /** "Mozilla/5.0 (Linux; Android 12; …) … Chrome/124 Mobile Safari/537.36" → 같은 Chrome의 데스크톱 리눅스 UA. */
+        fun desktopUserAgent(mobile: String): String =
+            mobile.replace(Regex("\\(Linux; Android[^)]*\\)"), "(X11; Linux x86_64)").replace(" Mobile", "").replace("; wv", "")
 
         /** 로그인돼 있는지: threads.com 쿠키에 세션이 있는지로 본다. */
         fun isLoggedIn(): Boolean = runCatching {

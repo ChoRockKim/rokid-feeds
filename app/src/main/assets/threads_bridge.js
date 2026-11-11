@@ -107,3 +107,29 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();
+
+// 로그인 화면: 폰 키보드는 안드로이드 기본 입력칸에만 글자를 보내고 웹 입력칸에는 못 넣는다(2026-11-11 사용자 확인).
+// 그래서 앱의 기본 입력칸에서 받은 글자를 지금 고른 웹 입력칸에 넣는다. React 페이지라 value를 직접 바꾸면 무시되므로
+// 입력칸 원래의 value setter로 넣고 input/change 이벤트를 보낸다.
+(function () {
+  if (window.__rokidSetValue) return;
+  function target() {
+    var el = document.querySelector('[data-rokid-focus]') || document.activeElement;
+    return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') ? el : null;
+  }
+  /** 고른 칸이 입력칸이면 {"type":"password","label":"비밀번호"}, 아니면 "". */
+  window.__rokidFocusInfo = function () {
+    var el = target();
+    if (!el) return '';
+    return JSON.stringify({ type: el.type || 'text', label: (el.getAttribute('aria-label') || el.placeholder || el.name || '').slice(0, 40) });
+  };
+  window.__rokidSetValue = function (text) {
+    var el = target();
+    if (!el) return false;
+    var proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, text);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  };
+})();

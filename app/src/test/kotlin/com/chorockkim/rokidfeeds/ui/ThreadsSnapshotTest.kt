@@ -79,5 +79,10 @@ class ThreadsSnapshotTest {
     fun threads_detail_reply() = shot { ThreadsDetailScreen(pages, pageIndex = pages.indexOfFirst { it is com.chorockkim.rokidfeeds.threads.ThreadPage.Replies }, selectedReply = 1, now = now, image = fakePhoto) }
 
     @Test
-    fun threads_login_hint() = shot { ThreadsLoginHint("사용자 이름, 전화번호 또는 이메일") }
+    fun threads_login_hint() = shot { ThreadsLoginBar("사용자 이름, 전화번호 또는 이메일 주소", null, "", {}, {}) }
+
+    @Test
+    fun threads_login_typing_password() = shot {
+        ThreadsLoginBar("비밀번호", com.chorockkim.rokidfeeds.threads.LoginField(password = true, label = "비밀번호"), "secret", {}, {})
+    }
 }

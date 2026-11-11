@@ -34,6 +34,7 @@ import com.chorockkim.rokidfeeds.net.WifiEnabler
 import com.chorockkim.rokidfeeds.ui.GlassScreen
 import com.chorockkim.rokidfeeds.ui.Glass
 import com.chorockkim.rokidfeeds.nav.Screen
+import com.chorockkim.rokidfeeds.threads.LoginField
 import com.chorockkim.rokidfeeds.threads.ThreadsSession
 import com.chorockkim.rokidfeeds.threads.ThreadsWeb
 import com.chorockkim.rokidfeeds.ui.AppRoot
@@ -72,6 +73,9 @@ class MainActivity : ComponentActivity() {
     private var screen = Screen.Menu
     private var threadsLoggedIn by mutableStateOf(ThreadsWeb.isLoggedIn())
     private var loginFocus by mutableStateOf<String?>(null)
+    /** 로그인 화면에서 앱 입력칸이 열려 있으면 그 웹 칸 정보. 폰 키보드 글자를 여기서 받아 웹 칸에 넣는다. */
+    private var loginEditing by mutableStateOf<LoginField?>(null)
+    private var loginText by mutableStateOf("")
     private var threadsWeb: ThreadsWeb? = null
     /** Threads를 처음 고를 때 만든다(WebView). 화면은 이 값이 생기면 그린다. */
     private var threadsSession by mutableStateOf<ThreadsSession?>(null)
@@ -127,6 +131,10 @@ class MainActivity : ComponentActivity() {
                         onLogout = ::logout,
                         onExit = { finish() },
                         loginFocus = loginFocus,
+                        loginEditing = loginEditing,
+                        loginText = loginText,
+                        onLoginText = { loginText = it },
+                        onLoginDone = ::submitLoginText,
                     )
                 }
             }
@@ -145,7 +153,8 @@ class MainActivity : ComponentActivity() {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                keys.trySend(NavKey.Back)
+                // 로그인 화면에서 앱 입력칸이 열려 있으면 입력만 취소한다.
+                if (loginEditing != null) cancelLoginText() else keys.trySend(NavKey.Back)
             }
         })
 
@@ -208,6 +217,8 @@ class MainActivity : ComponentActivity() {
      * 그 밖의 키(글자·스페이스 등 폰 키보드가 보내는 것)는 포커스된 웹 입력칸으로 그대로 보낸다.
      */
     private fun dispatchLoginKey(event: KeyEvent): Boolean {
+        // 앱 입력칸이 열려 있으면 모든 키(글자·Enter)는 그 칸으로.
+        if (loginEditing != null) return super.dispatchKeyEvent(event)
         if (threadsWeb == null || event.keyCode !in LOGIN_NAV_KEYS) return super.dispatchKeyEvent(event)
         loginAction(input.map(event))
         return true
@@ -215,13 +226,43 @@ class MainActivity : ComponentActivity() {
 
     private fun loginAction(action: GlassesInput.Action) {
         val web = threadsWeb ?: return
+        if (loginEditing != null) {
+            when (action) {
+                GlassesInput.Action.SELECT -> submitLoginText()
+                GlassesInput.Action.BACK -> cancelLoginText()
+                else -> Unit
+            }
+            return
+        }
         when (action) {
             GlassesInput.Action.PREVIOUS, GlassesInput.Action.UP -> web.focus(-1) { loginFocus = it }
             GlassesInput.Action.NEXT, GlassesInput.Action.DOWN -> web.focus(1) { loginFocus = it }
-            GlassesInput.Action.SELECT -> web.click()
+            // 입력칸이면 앱 입력칸을 열고(폰 키보드), 버튼이면 누른다.
+            GlassesInput.Action.SELECT -> web.focusedInput { field ->
+                if (field != null) {
+                    loginText = ""
+                    loginEditing = field
+                } else web.click()
+            }
             GlassesInput.Action.BACK -> keys.trySend(NavKey.Back)
             else -> Unit
         }
+    }
+
+    /** 앱 입력칸의 글자를 고른 웹 칸에 넣고, 다음 칸으로 옮긴다. 글자는 바로 지운다(비밀번호를 앱에 남기지 않음). */
+    private fun submitLoginText() {
+        val web = threadsWeb ?: return
+        val text = loginText
+        loginText = ""
+        loginEditing = null
+        web.feed.requestFocus()
+        web.setFocusedValue(text) { web.focus(1) { loginFocus = it } }
+    }
+
+    private fun cancelLoginText() {
+        loginText = ""
+        loginEditing = null
+        threadsWeb?.feed?.requestFocus()
     }
 
     // endregion
@@ -286,6 +327,9 @@ class MainActivity : ComponentActivity() {
             ringTarget.requestFocus()
         }
         if (previous == Screen.ThreadsLogin && next != Screen.ThreadsLogin) {
+            loginText = ""
+            loginEditing = null
+            threadsWeb?.endLogin()
             threadsLoggedIn = ThreadsWeb.isLoggedIn()
             threadsSession?.afterLogin()
         }
@@ -403,7 +447,7 @@ class MainActivity : ComponentActivity() {
     private companion object {
         const val CRASH_NOTICE_MS = 15_000L
         /** 로그인 화면에서 웹 아래에 남겨 두는 안내 줄 높이. */
-        const val LOGIN_HINT_DP = 30
+        const val LOGIN_HINT_DP = 70
         /** 로그인 화면에서 웹을 Compose 화면 위로 꺼내는 높이. */
         const val LOGIN_Z = 10f
         val LOGIN_NAV_KEYS = setOf(
