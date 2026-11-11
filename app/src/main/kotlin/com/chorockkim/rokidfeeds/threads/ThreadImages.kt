@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import com.chorockkim.rokidfeeds.data.BoundedHttp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
 /**
@@ -22,11 +23,13 @@ import kotlinx.coroutines.withContext
 object ThreadImages {
     private val http = BoundedHttp(maxBodyBytes = 6 * 1024 * 1024)
     private val cache = LruCache<String, ImageBitmap>(24)
+    /** 동시에 받는 사진 수. 목록을 빨리 넘길 때 받기가 쌓여 느려지지 않게 한다. */
+    private val slots = kotlinx.coroutines.sync.Semaphore(2)
 
     suspend fun load(url: String): ImageBitmap? {
         cache.get(url)?.let { return it }
         val bitmap = runCatching {
-            val bytes = http.fetchBytes(url)
+            val bytes = slots.withPermit { http.fetchBytes(url) }
             withContext(Dispatchers.Default) {
                 val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
@@ -40,7 +43,8 @@ object ThreadImages {
         return bitmap
     }
 
-    private const val MAX_WIDTH = 960
+    /** 띠 폭(480)보다 크게 풀지 않는다. */
+    private const val MAX_WIDTH = 480
 
     /**
      * 녹색 단색 화면용: 밝기만 남겨 강조색(#00ff66)으로 그린다(rokid-conversate와 같은 방식, 사진은 흑백 밝기 → 녹색 채널).

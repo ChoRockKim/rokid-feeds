@@ -24,6 +24,8 @@ class RingTarget(context: Context, private val onAction: (GlassesInput.Action) -
         isFocusableInTouchMode = true
         isClickable = true
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
+        // 화면 전체를 덮는 View라 포커스를 받으면 Android 기본 포커스 강조(테마 강조색, 반투명 청록)가 화면 전체에 깔린다.
+        if (android.os.Build.VERSION.SDK_INT >= 26) defaultFocusHighlightEnabled = false
         contentDescription = "Rokid Feeds"
     }
 

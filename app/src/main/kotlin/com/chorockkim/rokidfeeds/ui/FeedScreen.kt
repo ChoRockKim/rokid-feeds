@@ -31,7 +31,8 @@ fun FeedScreen(feed: Feed, selectedIndex: Int, now: Long = System.currentTimeMil
 
     // 바로 위 행도 보이게 한 칸 위에서 멈춘다(앞뒤 문맥이 보이도록).
     LaunchedEffect(selectedIndex, articles.size) {
-        if (articles.isNotEmpty()) listState.animateScrollToItem((selectedIndex - 1).coerceAtLeast(0))
+        // 애니메이션 없이 바로: 빨리 넘길 때 애니메이션이 취소되면 선택한 줄이 화면 밖에 남았다.
+        if (articles.isNotEmpty()) listState.scrollToItem((selectedIndex - 1).coerceAtLeast(0))
     }
 
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {

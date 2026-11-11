@@ -37,6 +37,9 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
         settings.mediaPlaybackRequiresUserGesture = true
+        // 글 데이터만 필요하다. 사진·동영상은 화면에 안 보이는 페이지가 받을 이유가 없고(느려짐), 앱이 필요할 때 따로 받는다.
+        settings.blockNetworkImage = true
+        if (android.os.Build.VERSION.SDK_INT >= 26) defaultFocusHighlightEnabled = false
         settings.userAgentString = settings.userAgentString.replace("; wv", "")
         CookieManager.getInstance().setAcceptCookie(true)
         if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
@@ -48,6 +51,10 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
         webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
                 !isAllowed(request.url) // threads·instagram(로그인) 밖으로는 나가지 않는다
+
+            /** 사용자 사진·동영상 CDN(scontent*.cdninstagram.com, *.fbcdn.net)은 빈 응답. 화면 코드(static.*)는 그대로 받는다. */
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): android.webkit.WebResourceResponse? =
+                if (isUserMedia(request.url)) android.webkit.WebResourceResponse("text/plain", "utf-8", java.io.ByteArrayInputStream(ByteArray(0))) else null
 
             override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
                 // 문서 시작 스크립트를 못 쓰는 WebView: 가능한 한 일찍 넣는다(처음 몇 응답은 놓칠 수 있다).
@@ -99,6 +106,13 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
         private fun isThreads(uri: Uri): Boolean = uri.scheme == "https" &&
             (uri.host == "threads.com" || uri.host?.endsWith(".threads.com") == true ||
                 uri.host == "threads.net" || uri.host?.endsWith(".threads.net") == true)
+
+        /** 사용자가 올린 사진·동영상 주소(페이지가 받지 않게 막는다). */
+        fun isUserMedia(uri: Uri): Boolean {
+            val host = uri.host ?: return false
+            return host.startsWith("scontent") && (host.endsWith(".cdninstagram.com") || host.endsWith(".fbcdn.net")) ||
+                host.startsWith("video") && host.endsWith(".fbcdn.net")
+        }
 
         private fun isAllowed(uri: Uri): Boolean = isThreads(uri) ||
             (uri.scheme == "https" && (uri.host == "instagram.com" || uri.host?.endsWith(".instagram.com") == true))

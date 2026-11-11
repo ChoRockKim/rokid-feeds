@@ -14,7 +14,9 @@ data class ThreadPost(
     /** 사진 주소(여러 장이면 순서대로). 동영상은 미리보기 사진만. */
     val images: List<String> = emptyList(),
     val hasVideo: Boolean = false,
-    /** 프로필 사진 주소(작은 것). 없으면 머리글자로 그린다. */
+    /** 목록 썸네일용 작은 사진 주소([images]와 같은 순서). */
+    val thumbs: List<String> = emptyList(),
+    /** 프로필 사진 주소. 지금은 받지 않고 머리글자로 그린다(속도). */
     val avatar: String? = null,
 ) {
     val url: String get() = "https://www.threads.com/@$author/post/$code"

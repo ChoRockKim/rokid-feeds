@@ -19,6 +19,9 @@ object ThreadsParser {
     /** 사진은 안경 띠 폭(480)에 맞춰 이 폭 이상인 것 중 가장 작은 것을 고른다. */
     const val IMAGE_TARGET_WIDTH = 480
 
+    /** 목록 썸네일(높이 64dp 정도)은 이 폭 이상 중 가장 작은 것. */
+    const val THUMB_TARGET_WIDTH = 160
+
     /** 응답 하나를 JSON들로 읽는다. GraphQL은 줄마다 JSON이 따로 오기도 하고 앞에 `for (;;);`가 붙기도 한다. */
     fun jsonValues(raw: String): List<Any> {
         val text = raw.trim().removePrefix("for (;;);")
@@ -94,9 +97,11 @@ object ThreadsParser {
         if (!isPost(o)) return null
         val info = o.optJSONObject("text_post_app_info")
         val carousel = o.optJSONArray("carousel_media")
-        val images = if (carousel != null && carousel.length() > 0) {
-            (0 until carousel.length()).mapNotNull { carousel.optJSONObject(it)?.let(::bestImage) }
-        } else listOfNotNull(bestImage(o))
+        val media = if (carousel != null && carousel.length() > 0) {
+            (0 until carousel.length()).mapNotNull { carousel.optJSONObject(it) }
+        } else listOf(o)
+        val images = media.mapNotNull { bestImage(it, IMAGE_TARGET_WIDTH) }
+        val thumbs = media.mapNotNull { bestImage(it, THUMB_TARGET_WIDTH) }
         return ThreadPost(
             pk = o.optString("pk"),
             code = o.optString("code"),
@@ -106,17 +111,18 @@ object ThreadsParser {
             likeCount = o.optInt("like_count"),
             replyCount = info?.optInt("direct_reply_count") ?: 0,
             images = images,
+            thumbs = thumbs.takeIf { it.size == images.size } ?: images,
             hasVideo = (o.optJSONArray("video_versions")?.length() ?: 0) > 0,
             avatar = o.getJSONObject("user").optString("profile_pic_url").takeIf { it.startsWith("https://") },
         )
     }
 
-    private fun bestImage(o: JSONObject): String? {
+    private fun bestImage(o: JSONObject, target: Int): String? {
         val candidates = o.optJSONObject("image_versions2")?.optJSONArray("candidates") ?: return null
         val list = (0 until candidates.length()).mapNotNull { candidates.optJSONObject(it) }
             .filter { it.optString("url").startsWith("https://") }
         if (list.isEmpty()) return null
-        val wide = list.filter { it.optInt("width") >= IMAGE_TARGET_WIDTH }
+        val wide = list.filter { it.optInt("width") >= target }
         return (wide.minByOrNull { it.optInt("width") } ?: list.maxByOrNull { it.optInt("width") })?.optString("url")
     }
 

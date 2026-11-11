@@ -61,19 +61,14 @@ object ThreadsText {
 /** "5분", "2시간"처럼 Threads 앱이 쓰는 짧은 시각. */
 fun shortAgo(now: Long, then: Long): String = timeAgo(now, then).removeSuffix(" 전")
 
-/** 둥근 아바타: 프로필 사진(녹색 단색) 또는 머리글자. */
+/** 둥근 아바타: 머리글자. 프로필 사진은 받지 않는다(줄마다 받으면 느려서). */
 @Composable
-fun Avatar(post: ThreadPost, size: Dp, image: ImageSource) {
+fun Avatar(post: ThreadPost, size: Dp) {
     Box(
         Modifier.size(size).clip(CircleShape).border(1.dp, Glass.Primary40, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        val bitmap = post.avatar?.let { image(it).image }
-        if (bitmap != null) {
-            Image(bitmap, null, contentScale = ContentScale.Crop, colorFilter = ThreadImages.GreenFilter, modifier = Modifier.size(size))
-        } else {
-            BasicText(post.author.take(1).uppercase(), style = ThreadsText.Username.copy(fontSize = (size.value * 0.42f).sp))
-        }
+        BasicText(post.author.take(1).uppercase(), style = ThreadsText.Username.copy(fontSize = (size.value * 0.42f).sp))
     }
 }
 
@@ -173,7 +168,7 @@ fun PostBlock(
 ) {
     Row(modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
         Column(Modifier.width(avatarSize), horizontalAlignment = Alignment.CenterHorizontally) {
-            Avatar(post, avatarSize, image)
+            Avatar(post, avatarSize)
             if (threadLine) Box(Modifier.padding(top = 4.dp).width(2.dp).weight(1f).background(Glass.Primary40, RoundedCornerShape(1.dp)))
         }
         Spacer(Modifier.width(10.dp))
@@ -182,7 +177,7 @@ fun PostBlock(
             val text = stripEmoji(post.text)
             if (text.isNotEmpty()) BasicText(text, style = ThreadsText.Body, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
             if (post.images.isNotEmpty()) {
-                if (thumbs) ThumbRow(post.images, image) else BasicText("사진 ${post.images.size}장", style = ThreadsText.Time)
+                if (thumbs) ThumbRow(post.thumbs.ifEmpty { post.images }, image) else BasicText("사진 ${post.images.size}장", style = ThreadsText.Time)
             } else if (post.hasVideo) BasicText("동영상", style = ThreadsText.Time)
             note?.let { BasicText(it, style = ThreadsText.Time) }
             if (actions) ActionRow(post, Modifier.padding(top = 2.dp))

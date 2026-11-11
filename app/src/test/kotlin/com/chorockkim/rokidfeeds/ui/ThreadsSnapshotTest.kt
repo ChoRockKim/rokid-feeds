@@ -64,7 +64,7 @@ class ThreadsSnapshotTest {
     fun menu() = shot { MenuScreen(selected = 1, threadsLoggedIn = false) }
 
     @Test
-    fun threads_feed() = shot { ThreadsFeedScreen(items, selectedIndex = 0, loading = false, loggedIn = true, now = now, image = fakePhoto) }
+    fun threads_feed() = shot { ThreadsFeedScreen(items, selectedIndex = 0, loading = false, loggedIn = true, now = now, image = fakePhoto, lazyThumbs = false) }
 
     @Test
     fun threads_empty_notLoggedIn() = shot { ThreadsFeedScreen(emptyList(), selectedIndex = 0, loading = false, loggedIn = false, now = now) }

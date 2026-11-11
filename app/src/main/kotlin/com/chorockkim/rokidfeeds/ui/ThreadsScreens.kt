@@ -23,6 +23,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -36,6 +41,9 @@ import com.chorockkim.rokidfeeds.threads.ThreadPost
 import com.chorockkim.rokidfeeds.threads.rememberThreadImage
 import com.chorockkim.rokidfeeds.util.stripEmoji
 import com.chorockkim.rokidfeeds.util.timeAgo
+
+/** 선택한 줄에 이만큼 머물면 썸네일을 받는다. */
+const val THUMB_DWELL_MS = 700L
 
 /** Threads 위 막대: 가운데 "Threads", 오른쪽 위치·로그인 상태. */
 @Composable
@@ -58,6 +66,8 @@ fun ThreadsFeedScreen(
     loggedIn: Boolean,
     now: Long = System.currentTimeMillis() / 1000,
     image: ImageSource = { rememberThreadImage(it) },
+    /** false면 바로 썸네일을 그린다(스냅샷). */
+    lazyThumbs: Boolean = true,
 ) {
     if (items.isEmpty()) {
         Column(Modifier.fillMaxSize()) {
@@ -71,7 +81,12 @@ fun ThreadsFeedScreen(
         return
     }
     val listState = rememberLazyListState()
-    LaunchedEffect(selectedIndex, items.size) { listState.animateScrollToItem(selectedIndex) }
+    // 선택한 글을 곧바로 맨 위에 둔다. 애니메이션은 링으로 빨리 넘길 때 중간에 취소되어 선택과 화면이 어긋났다
+    // (선택한 줄만 길어져 목표 위치도 바뀜).
+    LaunchedEffect(selectedIndex, items.size) { listState.scrollToItem(selectedIndex) }
+    // 사진 썸네일은 선택한 줄에 잠시 머물 때만 받는다(빨리 넘길 때는 받지 않음).
+    var settled by remember(selectedIndex) { mutableStateOf(!lazyThumbs) }
+    LaunchedEffect(selectedIndex) { if (lazyThumbs) { delay(THUMB_DWELL_MS); settled = true } }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         TopBar("${selectedIndex + 1}/${items.size}" + if (loggedIn) "" else " · 로그인 안 함")
         Divider()
@@ -87,7 +102,7 @@ fun ThreadsFeedScreen(
                         image = image,
                         maxLines = if (selected) 4 else 2,
                         threadLine = item.continuation.isNotEmpty(),
-                        thumbs = selected,
+                        thumbs = selected && settled,
                         note = if (item.continuation.isNotEmpty()) "이어진 글 ${item.continuation.size}개" else null,
                         modifier = Modifier.padding(vertical = 8.dp),
                     )
@@ -123,7 +138,7 @@ fun ThreadsDetailScreen(
                     val post = page.post
                     if (post != null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Avatar(post, 30.dp, image)
+                            Avatar(post, 30.dp)
                             Spacer(Modifier.width(10.dp))
                             NameLine(post, now)
                         }
@@ -133,7 +148,7 @@ fun ThreadsDetailScreen(
                 }
                 is ThreadPage.Image -> {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Avatar(page.post, 20.dp, image)
+                        Avatar(page.post, 20.dp)
                         Spacer(Modifier.width(8.dp))
                         BasicText(page.post.author, style = ThreadsText.Username, maxLines = 1)
                         Spacer(Modifier.weight(1f))

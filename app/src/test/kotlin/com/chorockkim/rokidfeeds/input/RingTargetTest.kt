@@ -37,4 +37,10 @@ class RingTargetTest {
         assertTrue(target.isClickable)
         assertEquals(android.view.View.IMPORTANT_FOR_ACCESSIBILITY_YES, target.importantForAccessibility)
     }
+
+    @Test
+    fun focusDoesNotTintTheWholeScreen() {
+        // 화면 전체를 덮는 View라 기본 포커스 강조가 켜져 있으면 링으로 움직일 때 화면 전체가 뿌옇게(청록) 덮인다.
+        assertEquals(false, RingTarget(paparazzi.context) {}.defaultFocusHighlightEnabled)
+    }
 }
