@@ -20,6 +20,9 @@ import com.chorockkim.rokidfeeds.threads.ThreadsSession
 import com.chorockkim.rokidfeeds.threads.buildPostPages
 import kotlinx.coroutines.flow.Flow
 
+/** 목록에서 한 글에 이만큼 머물면 상세를 미리 받는다. */
+private const val PREFETCH_DWELL_MS = 1_000L
+
 /** 열어 둔 글 하나와 그 안의 위치. 댓글을 열면 위에 쌓이고 뒤로 하면 빠진다. */
 private data class Opened(val item: ThreadItem, val state: DetailState = DetailState())
 
@@ -46,7 +49,14 @@ fun ThreadsApp(session: ThreadsSession, keys: Flow<NavKey>, onBack: () -> Unit) 
         if (item != null) { if (session.openItem != item) session.open(item) } else if (session.openItem != null) session.close()
     }
     LaunchedEffect(shownList.selected, items.size) {
+        session.selectedIndex = shownList.selected
         if (top == null && items.isNotEmpty() && shownList.selected >= items.size - 3) session.loadMore()
+    }
+    // 목록에서 한 글에 잠시 머물면 그 글 상세를 미리 받아 둔다(탭하면 바로 열리게, TanStack의 prefetch).
+    LaunchedEffect(shownList.selected, top == null, items.size) {
+        if (top != null || items.isEmpty()) return@LaunchedEffect
+        kotlinx.coroutines.delay(PREFETCH_DWELL_MS)
+        items.getOrNull(shownList.selected)?.let(session::prefetch)
     }
 
     val detail = session.detail.takeIf { top != null && session.openItem == top.item }

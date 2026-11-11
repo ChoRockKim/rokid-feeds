@@ -85,7 +85,25 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
     fun openHome() = feed.loadUrl(HOME)
 
 
-    fun openPost(item: ThreadPost) = post.loadUrl(item.url)
+    /**
+     * [item] 글 페이지로. 글 WebView에 이미 threads.com이 떠 있으면 페이지를 새로 열지 않고 그 안에서 옮겨 간다
+     * (history.pushState + popstate: threads.com이 데이터 요청만 다시 한다. 2026-11-11 Chromium에서 전체 열기 1.5초 →
+     * 0.4초, 같은 문서 유지 확인). 페이지 안에서 옮겼으면 true. 데이터가 안 오면 부르는 쪽이 [reloadPost]로 다시 연다.
+     */
+    fun openPost(item: ThreadPost): Boolean {
+        val url = post.url.orEmpty()
+        val ready = url.startsWith("https://www.threads.com/") && post.progress >= 100
+        if (!ready) {
+            post.loadUrl(item.url)
+            return false
+        }
+        val path = JSONObject.quote("/@${item.author}/post/${item.code}")
+        post.evaluateJavascript("history.pushState({}, '', $path); dispatchEvent(new PopStateEvent('popstate', { state: {} }));", null)
+        return true
+    }
+
+    /** 글 페이지를 새로 연다(페이지 안 이동이 안 먹을 때). */
+    fun reloadPost(item: ThreadPost) = post.loadUrl(item.url)
 
     /** 목록 페이지를 아래로 내려 다음 글을 받게 한다(사람이 스크롤하는 것과 같다). */
     /** 글 페이지를 내려 댓글을 더 받게 한다(Threads는 글 페이지에 처음 몇 개만 넣고 나머지는 내릴 때 준다). */

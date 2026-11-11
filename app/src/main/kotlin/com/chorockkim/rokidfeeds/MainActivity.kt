@@ -36,6 +36,7 @@ import com.chorockkim.rokidfeeds.ui.Glass
 import com.chorockkim.rokidfeeds.nav.Screen
 import com.chorockkim.rokidfeeds.threads.LoginRelay
 import com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow
+import com.chorockkim.rokidfeeds.threads.ThreadsCache
 import com.chorockkim.rokidfeeds.threads.ThreadsSession
 import com.chorockkim.rokidfeeds.threads.ThreadsWeb
 import com.chorockkim.rokidfeeds.ui.AppRoot
@@ -215,7 +216,7 @@ class MainActivity : ComponentActivity() {
         threadsSession?.let { return it }
         lateinit var session: ThreadsSession
         val web = ThreadsWeb(this) { source, url, json -> session.onJson(source, url, json) }
-        session = ThreadsSession(web, lifecycleScope)
+        session = ThreadsSession(web, lifecycleScope, ThreadsCache(java.io.File(filesDir, "threads-cache")))
         // 보통은 띠 안에, Compose 화면 **뒤**에 둬서(검정으로 가려짐) 페이지가 보이는 것처럼 계속 돌게 하고
         // (숨김 상태면 무한 스크롤이 멈출 수 있다), 로그인할 때만 화면 세로 전체로 늘려 앞으로 꺼낸다(translationZ).
         listOf(web.feed, web.post).forEach { view ->

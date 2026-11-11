@@ -11,10 +11,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Threads 화면 상태: 목록(받은 순서, 중복 제거), 열린 글의 상세(본문·이어 쓴 글·댓글), 불러오는 중 표시.
- * [ThreadsWeb]이 넘겨준 JSON을 백그라운드에서 [ThreadsParser]로 읽어 메인 스레드에서 상태를 바꾼다.
+ * Threads 화면 상태와 데이터 받기. TanStack Query처럼:
+ * - **캐시 + stale-while-revalidate**: 목록·글 상세를 기기에 저장해 두고([ThreadsCache]) 켜자마자 저장본을 보여 준 뒤 뒤에서
+ *   새로 받아 바꾼다. 글 상세는 [DETAIL_FRESH_MS] 안에 받은 것이면 다시 받지 않는다.
+ * - **prefetch**: 목록에서 한 글에 머물면 그 글 상세를 미리 받아 둔다([prefetch]).
+ * - **무한 스크롤**: 목록·댓글 끝 근처에서만 다음 묶음을 받는다([loadMore], [loadMoreReplies]).
+ * 글 페이지는 이미 떠 있는 threads.com 안에서 옮겨 간다([ThreadsWeb.openPost], 전체 다시 열기보다 빠름). 데이터가
+ * [SPA_FALLBACK_MS] 안에 안 오면 전체를 다시 연다.
  */
-class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineScope) {
+class ThreadsSession(
+    private val web: ThreadsWeb,
+    private val scope: CoroutineScope,
+    private val cache: ThreadsCache? = null,
+) {
     var items by mutableStateOf<List<ThreadItem>>(emptyList())
         private set
     var feedLoading by mutableStateOf(false)
@@ -33,6 +42,12 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
     /** 연달아 [MAX_EMPTY_MORE]번 새 글이 없으면 목록 끝으로 보고 더 시도하지 않는다(새로 고침하면 다시). */
     var feedEnd by mutableStateOf(false)
         private set
+    /** 목록이 저장본(새로 받기 전)인지. */
+    var feedStale by mutableStateOf(false)
+        private set
+    /** 목록에서 지금 고른 줄(ThreadsApp이 알려 준다). 저장본을 새 목록으로 바꿀지 정할 때 쓴다. */
+    var selectedIndex = 0
+
     private var emptyMore = 0
     private var moreTimeout: Job? = null
 
@@ -44,14 +59,23 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
     private var repliesTimeout: Job? = null
     private var lastRepliesAt = 0L
 
-    /** 연 글의 상세(글 코드별). 댓글의 답글을 보고 돌아올 때 다시 받지 않는다. */
-    private val details = HashMap<String, ThreadDetail>()
+    private data class Cached(val detail: ThreadDetail, val fetchedAt: Long)
+
+    /** 글 상세(글 코드별). 기기 저장본으로 채워지고, 받을 때마다 갱신된다. */
+    private val details = HashMap<String, Cached>()
+
+    /** 지금 글 WebView가 받고 있는 글(prefetch든 열기든). 그 글의 응답만 받는다. */
+    private var target: ThreadItem? = null
+    private var targetLoading = false
+
     private var started = false
     private var lastMoreAt = 0L
     private var feedTimeout: Job? = null
     private var detailTimeout: Job? = null
+    private var fallback: Job? = null
     private var feedIdle: Job? = null
     private var postIdle: Job? = null
+    private var feedSave: Job? = null
 
     /** 받기를 시작하면 WebView를 켜고, 데이터가 오면 [IDLE_AFTER_DATA_MS] 뒤(이어 오는 응답까지 받고) 끈다. */
     private fun feedBusy() { feedIdle?.cancel(); web.feedActive = true }
@@ -65,16 +89,23 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
         postIdle = scope.launch { delay(after); web.postActive = false }
     }
 
-    /** Threads 화면에 처음 들어올 때 한 번 홈을 연다. */
+    /** Threads 화면에 처음 들어올 때: 저장본이 있으면 바로 보여 주고, 뒤에서 홈을 새로 받는다. */
     fun start() {
         if (started) return
         started = true
-        refresh()
+        scope.launch {
+            val cached = cache?.let { c -> withContext(Dispatchers.IO) { c.prune(); c.loadFeed() } }
+            if (cached != null && items.isEmpty()) {
+                items = cached.value
+                feedStale = true
+            }
+            refresh(keepItems = cached != null)
+        }
     }
 
-    fun refresh() {
+    fun refresh(keepItems: Boolean = false) {
         loggedIn = ThreadsWeb.isLoggedIn()
-        items = emptyList()
+        if (!keepItems) { items = emptyList(); feedStale = false }
         feedEnd = false
         emptyMore = 0
         loadingMore = false
@@ -91,7 +122,7 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
      * 연달아 [MAX_EMPTY_MORE]번이면 목록 끝으로 본다(계속 WebView를 켜며 느려지던 것을 막는다).
      */
     fun loadMore() {
-        if (loadingMore || feedEnd || feedLoading) return
+        if (loadingMore || feedEnd || feedLoading || feedStale) return
         val now = System.currentTimeMillis()
         if (now - lastMoreAt < MORE_INTERVAL_MS) return
         lastMoreAt = now
@@ -109,26 +140,66 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
         }
     }
 
+    /** 저장본(메모리 → 기기)에서 글 상세를 찾는다. */
+    private suspend fun cached(code: String): Cached? = details[code] ?: cache?.let { c ->
+        withContext(Dispatchers.IO) { c.loadDetail(code) }?.let { Cached(it.value, it.savedAt).also { e -> details[code] = e } }
+    }
+
+    private fun isFresh(c: Cached?) = c != null && System.currentTimeMillis() - c.fetchedAt < DETAIL_FRESH_MS
+
+    /**
+     * 목록에서 한 글에 머물 때: 그 글 상세를 미리 받아 둔다. 글을 열어 둔 동안이나 이미 신선한 저장본이 있으면 하지 않는다.
+     */
+    fun prefetch(item: ThreadItem) {
+        if (openItem != null || targetLoading && target?.head?.code == item.head.code) return
+        scope.launch {
+            if (openItem != null || isFresh(cached(item.head.code))) return@launch
+            load(item)
+        }
+    }
+
+    /** 글 WebView로 [item] 글 상세를 받는다. 이미 떠 있는 threads.com이면 페이지 안에서 옮겨 가고, 늦으면 다시 연다. */
+    private fun load(item: ThreadItem) {
+        target = item
+        targetLoading = true
+        postBusy()
+        val inPage = web.openPost(item.head)
+        fallback?.cancel()
+        if (inPage) fallback = scope.launch {
+            delay(SPA_FALLBACK_MS)
+            if (target == item && targetLoading) web.reloadPost(item.head)
+        }
+        detailTimeout?.cancel()
+        detailTimeout = scope.launch {
+            delay(LOAD_TIMEOUT_MS)
+            if (target == item) targetLoading = false
+            if (openItem == item) detailLoading = false
+            postDone(0)
+        }
+    }
+
     fun open(item: ThreadItem) {
         openItem = item
         loadingMoreReplies = false
         emptyReplies = 0
         repliesEnd = false
         repliesTimeout?.cancel()
-        detail = details[item.head.code]
-        detailTimeout?.cancel()
-        if (detail != null) {
-            detailLoading = false
-            return
+        val code = item.head.code
+        val memory = details[code]
+        detail = memory?.detail
+        detailLoading = memory == null
+        scope.launch {
+            val c = cached(code)
+            if (openItem != item) return@launch
+            if (c != null) { detail = c.detail; detailLoading = false }
+            // 신선하면 그대로, 아니면 저장본을 보여 주면서 뒤에서 새로 받는다(이미 이 글을 받는 중이면 그대로 둔다).
+            if (isFresh(c)) return@launch
+            if (target?.head?.code == code && targetLoading) return@launch
+            load(item)
         }
-        detailLoading = true
-        postBusy()
-        web.openPost(item.head)
-        detailTimeout?.cancel()
-        detailTimeout = scope.launch { delay(LOAD_TIMEOUT_MS); detailLoading = false; postDone(0) }
     }
 
-    /** 댓글 목록 끝 근처에서: 글 페이지를 내려 다음 댓글을 받는다. 그 글 페이지가 열려 있어야 한다. */
+    /** 댓글 목록 끝 근처에서: 글 페이지를 내려 다음 댓글을 받는다. */
     fun loadMoreReplies() {
         val item = openItem ?: return
         if (loadingMoreReplies || repliesEnd || detailLoading) return
@@ -136,8 +207,8 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
         if (now - lastRepliesAt < MORE_INTERVAL_MS) return
         lastRepliesAt = now
         loadingMoreReplies = true
-        // 캐시로 열었으면 글 페이지가 열려 있지 않다: 먼저 연다(처음 몇 개는 이미 있으니 다음 응답부터 더해진다).
-        if (web.post.url?.contains(item.head.code) != true) web.openPost(item.head)
+        // 저장본으로 열었으면 글 페이지가 그 글이 아닐 수 있다: 먼저 그 글로 옮긴다.
+        if (target?.head?.code != item.head.code || web.post.url?.contains(item.head.code) != true) load(item)
         postBusy()
         scope.launch { delay(MORE_SCROLL_DELAY_MS * 3); web.loadMoreReplies() }
         repliesTimeout?.cancel()
@@ -150,11 +221,11 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
         }
     }
 
+    /** 글을 닫는다. 글 페이지는 비우지 않는다(다음 글을 페이지 안에서 빨리 열려고). */
     fun close() {
         openItem = null
         detail = null
         detailLoading = false
-        web.post.loadUrl("about:blank")
         postDone(0)
     }
 
@@ -164,11 +235,19 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
         if (now != loggedIn || started) {
             loggedIn = now
             started = true
+            details.clear()
             refresh()
         }
     }
 
-    fun logout() = ThreadsWeb.logout { scope.launch { loggedIn = false; if (started) refresh() } }
+    fun logout() = ThreadsWeb.logout {
+        scope.launch {
+            loggedIn = false
+            details.clear()
+            withContext(Dispatchers.IO) { cache?.clear() }
+            if (started) refresh()
+        }
+    }
 
     /** [ThreadsWeb]이 넘긴 JSON(메인 스레드). */
     fun onJson(source: ThreadsWeb.Source, pageUrl: String, json: String) {
@@ -176,10 +255,16 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
             ThreadsWeb.Source.Feed -> scope.launch {
                 val found = withContext(Dispatchers.Default) { ThreadsParser.items(json) }
                 if (found.isEmpty()) return@launch
+                if (feedStale) {
+                    // 저장본을 보던 중 새 목록이 왔다: 아직 처음 줄이면 통째로 바꾸고, 이미 내려가 있으면 새 글만 뒤에 붙인다(자리가 튀지 않게).
+                    feedStale = false
+                    if (selectedIndex == 0) items = emptyList()
+                }
                 val seen = items.mapTo(HashSet()) { it.head.pk }
                 val fresh = found.filter { seen.add(it.head.pk) }
                 items = items + fresh
                 feedLoading = false
+                saveFeedSoon()
                 if (fresh.isNotEmpty() && loadingMore) {
                     moreTimeout?.cancel()
                     loadingMore = false
@@ -188,16 +273,23 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
                 } else feedDone()
             }
             ThreadsWeb.Source.Post -> {
-                val item = openItem ?: return
+                val item = target ?: return
                 val code = item.head.code
-                if (!pageUrl.contains(code)) return // 이전 글 페이지에서 늦게 온 응답
+                if (!pageUrl.contains(code)) return // 이전 글에서 늦게 온 응답
                 scope.launch {
                     val part = withContext(Dispatchers.Default) { ThreadsParser.detailPart(json, code) }
-                    if (openItem?.head?.code != code) return@launch
-                    val before = detail?.replies?.size ?: 0
-                    detail = ThreadsParser.merge(detail, part, fallbackMain = item.head)?.also { details[code] = it }
-                    detailLoading = false
-                    if (loadingMoreReplies && (detail?.replies?.size ?: 0) > before) {
+                    if (target?.head?.code != code) return@launch
+                    val before = details[code]?.detail?.replies?.size ?: 0
+                    val merged = ThreadsParser.merge(details[code]?.detail, part, fallbackMain = item.head) ?: return@launch
+                    details[code] = Cached(merged, System.currentTimeMillis())
+                    targetLoading = false
+                    fallback?.cancel()
+                    cache?.let { c -> launch(Dispatchers.IO) { c.saveDetail(code, merged) } }
+                    if (openItem?.head?.code == code) {
+                        detail = merged
+                        detailLoading = false
+                    }
+                    if (loadingMoreReplies && merged.replies.size > before) {
                         repliesTimeout?.cancel()
                         loadingMoreReplies = false
                         emptyReplies = 0
@@ -205,6 +297,16 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
                     } else postDone()
                 }
             }
+        }
+    }
+
+    private fun saveFeedSoon() {
+        val c = cache ?: return
+        feedSave?.cancel()
+        feedSave = scope.launch {
+            delay(2_000)
+            val snapshot = items
+            withContext(Dispatchers.IO) { c.saveFeed(snapshot) }
         }
     }
 
@@ -219,5 +321,9 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
         const val MORE_IDLE_MS = 500L
         const val MORE_SCROLL_DELAY_MS = 300L
         const val MAX_EMPTY_MORE = 3
+        /** 이 안에 받은 글 상세는 다시 받지 않는다(TanStack의 staleTime). */
+        const val DETAIL_FRESH_MS = 2 * 60 * 1000L
+        /** 페이지 안 이동 뒤 이만큼 데이터가 없으면 그 글 페이지를 새로 연다. */
+        const val SPA_FALLBACK_MS = 3_000L
     }
 }
