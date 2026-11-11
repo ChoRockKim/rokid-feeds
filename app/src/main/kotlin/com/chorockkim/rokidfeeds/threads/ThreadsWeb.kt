@@ -84,9 +84,6 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
 
     fun openHome() = feed.loadUrl(HOME)
 
-    init {
-        applyVisibility()
-    }
 
     fun openPost(item: ThreadPost) = post.loadUrl(item.url)
 
@@ -173,6 +170,12 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
     fun wake() {
         feed.onResume()
         post.onResume()
+    }
+
+    // 맨 처음 보이기 상태를 맞춘다. 반드시 위의 속성들(login·feedActive·busy) 뒤에 둔다: Kotlin은 선언 순서대로 초기화해서,
+    // 앞에 두면 아직 만들어지지 않은 busy(MutableState)를 건드려 NullPointerException으로 앱이 죽었다(0.2.10).
+    init {
+        applyVisibility()
     }
 
     companion object {

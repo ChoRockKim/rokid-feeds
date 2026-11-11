@@ -40,15 +40,19 @@ fun AppRoot(
         Screen.Menu -> {
             val onKey by rememberUpdatedState { key: NavKey ->
                 val result = AppNav.reduceMenu(app, key)
-                when {
-                    result.exit -> onExit()
-                    // 로그인돼 있으면 "로그아웃" 줄: 화면을 바꾸지 않고 로그아웃만 한다.
-                    result.state.screen == Screen.ThreadsLogin && threadsLoggedIn -> onLogout()
-                    else -> app = result.state
-                }
+                if (result.exit) onExit() else app = result.state
             }
             LaunchedEffect(keys) { keys.collect { onKey(it) } }
             MenuScreen(selected = app.menuSelected, threadsLoggedIn = threadsLoggedIn)
+        }
+        Screen.Settings -> {
+            val onKey by rememberUpdatedState { key: NavKey ->
+                val result = AppNav.reduceSettings(app, key, threadsLoggedIn)
+                app = result.state
+                if (result.logout) onLogout()
+            }
+            LaunchedEffect(keys) { keys.collect { onKey(it) } }
+            SettingsScreen(app.settingsSelected, threadsLoggedIn, app.confirmLogout, com.chorockkim.rokidfeeds.BuildConfig.VERSION_NAME)
         }
         Screen.News -> NewsApp(keys = keys, online = online, onBack = toMenu, api = api)
         Screen.Threads -> if (threads != null) ThreadsApp(session = threads, keys = keys, onBack = toMenu) else {
@@ -57,10 +61,10 @@ fun AppRoot(
             LoadingView()
         }
         Screen.ThreadsLogin -> {
-            // 뒤로 = 메뉴, 탭 = (실패했으면) 새 코드로 다시 시작.
+            // 뒤로 = 설정, 탭 = (실패했으면) 새 코드로 다시 시작.
             val onKey by rememberUpdatedState { key: NavKey ->
                 when (key) {
-                    NavKey.Back -> toMenu()
+                    NavKey.Back -> app = AppNav.backFromLogin(app)
                     NavKey.Select -> if (login is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Failed) onLoginRetry()
                     else -> Unit
                 }

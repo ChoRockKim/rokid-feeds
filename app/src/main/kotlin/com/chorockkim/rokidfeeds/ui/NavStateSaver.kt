@@ -11,6 +11,6 @@ val NavStateSaver = listSaver<NavState, Int>(
 
 /** [com.chorockkim.rokidfeeds.nav.AppState]를 보존한다. */
 val AppStateSaver = listSaver<com.chorockkim.rokidfeeds.nav.AppState, Int>(
-    save = { listOf(it.screen.ordinal, it.menuSelected) },
-    restore = { com.chorockkim.rokidfeeds.nav.AppState(com.chorockkim.rokidfeeds.nav.Screen.entries[it[0]], it[1]) },
+    save = { listOf(it.screen.ordinal, it.menuSelected, it.settingsSelected) },
+    restore = { com.chorockkim.rokidfeeds.nav.AppState(com.chorockkim.rokidfeeds.nav.Screen.entries[it[0]], it[1], it.getOrElse(2) { 0 }) },
 )

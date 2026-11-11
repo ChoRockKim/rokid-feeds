@@ -64,6 +64,9 @@ class ThreadsSnapshotTest {
     fun menu() = shot { MenuScreen(selected = 1, threadsLoggedIn = false) }
 
     @Test
+    fun settings_confirmLogout() = shot { SettingsScreen(selected = 0, threadsLoggedIn = true, confirmLogout = true, version = "0.2.11") }
+
+    @Test
     fun threads_feed() = shot { ThreadsFeedScreen(items, selectedIndex = 0, loading = false, loggedIn = true, now = now, image = fakePhoto, lazyThumbs = false) }
 
     @Test

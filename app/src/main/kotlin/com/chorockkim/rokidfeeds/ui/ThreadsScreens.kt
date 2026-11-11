@@ -85,7 +85,7 @@ fun ThreadsFeedScreen(
             TopBar(if (loggedIn) "" else "로그인 안 함")
             ErrorView(
                 title = if (loading) "불러오는 중…" else "글을 불러오지 못했습니다",
-                message = if (loggedIn) "잠시 뒤 다시 시도해 주세요" else "로그인하지 않으면 일부 글만 보입니다 · 메뉴에서 로그인",
+                message = if (loggedIn) "잠시 뒤 다시 시도해 주세요" else "로그인하지 않으면 일부 글만 보입니다 · 설정에서 로그인",
                 hint = if (loading) "뒤로: 메뉴" else "탭: 다시 시도 · 뒤로: 메뉴",
             )
         }
@@ -295,7 +295,7 @@ fun ThreadsLoginScreen(ui: com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui
             }
         }
         Column(Modifier.weight(1f)) {}
-        BasicText("뒤로: 메뉴 · 비밀번호는 안경·서버에 저장하지 않습니다", style = Glass.Caption, maxLines = 1)
+        BasicText("뒤로: 설정 · 비밀번호는 안경·서버에 저장하지 않습니다", style = Glass.Caption, maxLines = 1)
     }
 }
 
