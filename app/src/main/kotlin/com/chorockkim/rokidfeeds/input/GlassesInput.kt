@@ -31,13 +31,13 @@ class GlassesInput(private val clock: () -> Long = SystemClock::elapsedRealtime)
             KeyEvent.KEYCODE_DPAD_UP -> debounce(Action.UP)
             KeyEvent.KEYCODE_DPAD_DOWN -> debounce(Action.DOWN)
 
-            KeyEvent.KEYCODE_DPAD_LEFT, KEYCODE_ROKID_PREVIOUS,
-            KeyEvent.KEYCODE_MEDIA_PREVIOUS ->
-                debounce(Action.PREVIOUS)
+            KeyEvent.KEYCODE_DPAD_LEFT, KEYCODE_ROKID_PREVIOUS -> debounce(Action.PREVIOUS)
+            KeyEvent.KEYCODE_DPAD_RIGHT, KEYCODE_ROKID_NEXT -> debounce(Action.NEXT)
 
-            KeyEvent.KEYCODE_DPAD_RIGHT, KEYCODE_ROKID_NEXT,
-            KeyEvent.KEYCODE_MEDIA_NEXT ->
-                debounce(Action.NEXT)
+            // R08 링 미디어 키(브리지가 꺼져 있을 때)는 누를 때마다 한 번씩 온다. 터치패드 쓸기처럼 두 번 오지 않으므로
+            // 디바운스하지 않는다(240ms 안에 빨리 넘기면 입력이 버려져 링이 느리게 먹었다).
+            KeyEvent.KEYCODE_MEDIA_PREVIOUS -> Action.PREVIOUS
+            KeyEvent.KEYCODE_MEDIA_NEXT -> Action.NEXT
 
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER,
             KeyEvent.KEYCODE_SPACE, KEYCODE_ROKID_DOUBLE_TAP,

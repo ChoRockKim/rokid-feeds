@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.geometry.CornerRadius
@@ -45,7 +46,9 @@ data class StatusBar(
  */
 @Composable
 fun GlassScreen(status: StatusBar, content: @Composable () -> Unit) {
-    Box(Modifier.fillMaxSize().background(Glass.Background)) {
+    // 접근성 트리를 비운다. R08 브리지는 RingTarget 하나만 쓰고(Compose 쪽은 NO_HIDE_DESCENDANTS), 접근성 서비스가 켜져 있으면
+    // Compose가 화면이 바뀔 때마다 전체 의미 트리를 계산해 링으로 넘길 때 버벅였다.
+    Box(Modifier.fillMaxSize().background(Glass.Background).clearAndSetSemantics { }) {
         Box(
             Modifier
                 .align(Alignment.BottomCenter)

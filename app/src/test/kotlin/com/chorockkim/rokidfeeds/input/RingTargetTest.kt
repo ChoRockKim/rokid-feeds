@@ -43,4 +43,12 @@ class RingTargetTest {
         // 화면 전체를 덮는 View라 기본 포커스 강조가 켜져 있으면 링으로 움직일 때 화면 전체가 뿌옇게(청록) 덮인다.
         assertEquals(false, RingTarget(paparazzi.context) {}.defaultFocusHighlightEnabled)
     }
+
+    @Test
+    fun focusIsKeptForTheBridgeUnlessReleased() {
+        val target = RingTarget(paparazzi.context) {}
+        assertTrue(target.keepFocus())
+        target.keepFocus = { false }
+        assertEquals(false, target.keepFocus())
+    }
 }

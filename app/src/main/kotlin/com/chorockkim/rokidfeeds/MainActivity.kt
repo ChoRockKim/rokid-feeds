@@ -134,6 +134,7 @@ class MainActivity : ComponentActivity() {
         ringTarget = RingTarget(this) { action ->
             if (screen == Screen.ThreadsLogin) loginAction(action) else action.toNavKey()?.let(keys::trySend)
         }
+        ringTarget.keepFocus = { screen != Screen.ThreadsLogin }
         root = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
             addView(compose, FrameLayout.LayoutParams(-1, -1))
@@ -232,14 +233,8 @@ class MainActivity : ComponentActivity() {
         lateinit var session: ThreadsSession
         val web = ThreadsWeb(this) { source, url, json -> session.onJson(source, url, json) }
         session = ThreadsSession(web, lifecycleScope)
-        // 띠 안(안내 줄 위)에 둔다. 보통은 Compose 화면 **뒤**에 둬서(검정으로 가려짐) 페이지가 보이는 것처럼 계속 돌게 하고
-        // (숨김 상태면 무한 스크롤이 멈출 수 있다), 로그인할 때만 앞으로 꺼낸다(translationZ).
-        val density = resources.displayMetrics.density
-        fun bandParams() = FrameLayout.LayoutParams(
-            ((Glass.WIDTH_DP - 2) * density).toInt(),
-            ((Glass.HEIGHT_DP - LOGIN_HINT_DP) * density).toInt(),
-            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
-        ).apply { bottomMargin = (LOGIN_HINT_DP * density).toInt() }
+        // 보통은 띠 안에, Compose 화면 **뒤**에 둬서(검정으로 가려짐) 페이지가 보이는 것처럼 계속 돌게 하고
+        // (숨김 상태면 무한 스크롤이 멈출 수 있다), 로그인할 때만 화면 세로 전체로 늘려 앞으로 꺼낸다(translationZ).
         listOf(web.feed, web.post).forEach { view ->
             view.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
             root.addView(view, 0, bandParams())
@@ -248,6 +243,25 @@ class MainActivity : ComponentActivity() {
         threadsSession = session
         return session
     }
+
+    /** 평소 WebView 자리: 띠 안(안내 줄 위). */
+    private fun bandParams(): FrameLayout.LayoutParams {
+        val density = resources.displayMetrics.density
+        return FrameLayout.LayoutParams(
+            ((Glass.WIDTH_DP - 2) * density).toInt(),
+            ((Glass.HEIGHT_DP - LOGIN_HINT_DP) * density).toInt(),
+            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
+        ).apply { bottomMargin = (LOGIN_HINT_DP * density).toInt() }
+    }
+
+    /**
+     * 로그인할 때 WebView 자리: 화면 세로 전체(맨 아래 안내 한 줄만 남김). 띠 높이(282)로는 로그인 페이지의 창·팝업이
+     * 입력칸을 가려 로그인할 수 없었다.
+     */
+    private fun loginParams(): FrameLayout.LayoutParams =
+        FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT).apply {
+            bottomMargin = (LOGIN_HINT_DP * resources.displayMetrics.density).toInt()
+        }
 
     private fun onScreen(next: Screen) {
         val previous = screen
@@ -263,9 +277,11 @@ class MainActivity : ComponentActivity() {
             val feed = threadsWeb!!.feed
             loginFocus = null
             threadsWeb!!.openLogin()
+            feed.layoutParams = loginParams()
             feed.translationZ = LOGIN_Z
             feed.requestFocus() // 폰 키보드 글자가 웹 입력칸으로 가도록
         } else if (web != null) {
+            if (web.feed.translationZ != 0f) web.feed.layoutParams = bandParams()
             web.feed.translationZ = 0f
             ringTarget.requestFocus()
         }

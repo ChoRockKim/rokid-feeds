@@ -53,4 +53,18 @@ class GlassesInputTest {
         assertEquals(Action.NONE, input.map(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER, 0))
         assertEquals(Action.DUPLICATE, input.map(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER, 1))
     }
+
+    @Test
+    fun ringMediaKeysAreNotDebounced() {
+        assertEquals(Action.NEXT, down(KeyEvent.KEYCODE_MEDIA_NEXT))
+        now += 60
+        assertEquals(Action.NEXT, down(KeyEvent.KEYCODE_MEDIA_NEXT))
+        now += 60
+        assertEquals(Action.PREVIOUS, down(KeyEvent.KEYCODE_MEDIA_PREVIOUS))
+        // 터치패드 쓸기의 중복은 여전히 거른다.
+        now += 1_000
+        assertEquals(Action.NEXT, down(KeyEvent.KEYCODE_DPAD_RIGHT))
+        now += 60
+        assertEquals(Action.DUPLICATE, down(GlassesInput.KEYCODE_ROKID_NEXT))
+    }
 }
