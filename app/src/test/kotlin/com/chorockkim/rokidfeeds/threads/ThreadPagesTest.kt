@@ -46,4 +46,13 @@ class ThreadPagesTest {
         assertEquals(listOf("u"), buildPostPages(ThreadItem(p("M", "", listOf("u"))), null).single().photos)
         assertEquals("(내용 없음)", buildPostPages(ThreadItem(p("M", "")), null).single().body)
     }
+
+    @Test
+    fun `이어진 글 쪽은 몇 번째인지 알고, 다른 작성자 글은 빼낸다`() {
+        val main = p("M", "본문")
+        val other = ThreadPost("X", "X", "someone.else", "다른 사람 글", 0)
+        val pages = buildPostPages(ThreadItem(main, listOf(p("S", "이어서"), other)), null)
+        assertEquals(listOf("본문", "이어서"), pages.map { it.body })
+        assertEquals(listOf(0 to 2, 1 to 2), pages.map { it.part to it.parts })
+    }
 }

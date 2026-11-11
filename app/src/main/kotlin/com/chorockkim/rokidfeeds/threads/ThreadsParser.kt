@@ -38,7 +38,8 @@ object ThreadsParser {
         jsonValues(raw).forEach { walk(it, skip = setOf("relatedPosts")) { key, value ->
             if (key == "thread_items" && value is JSONArray) {
                 val posts = (0 until value.length()).mapNotNull { value.optJSONObject(it)?.optJSONObject("post")?.let(::post) }
-                if (posts.isNotEmpty()) out += ThreadItem(posts.first(), posts.drop(1))
+                // 묶음에 다른 사람의 글(답글 맥락)이 섞여 오기도 한다. 이어진 글은 첫 글과 같은 작성자 것만(다른 글이 끼어 보였다).
+                if (posts.isNotEmpty()) out += ThreadItem(posts.first(), posts.drop(1).filter { it.author == posts.first().author })
                 true
             } else false
         } }

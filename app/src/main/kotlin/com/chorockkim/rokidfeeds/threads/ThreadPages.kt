@@ -15,6 +15,9 @@ data class PostPage(
     val photos: List<String> = emptyList(),
     val thumbs: List<String> = emptyList(),
     val actions: Boolean = false,
+    /** 작성자가 이어 쓴 글이면 몇 번째(1부터, 본문은 0)와 전체 수. 화면에 "이어서 2/3"으로 보여 다른 글처럼 보이지 않게 한다. */
+    val part: Int = 0,
+    val parts: Int = 1,
 )
 
 /** 작성자 줄이 있는 첫 쪽 / 나머지 쪽의 글자 수. */
@@ -32,8 +35,9 @@ const val MAX_IMAGES_PER_POST = 10
  * 댓글은 쪽이 아니라 따로 목록으로 보여 준다([ThreadDetail.replies]).
  */
 fun buildPostPages(item: ThreadItem, detail: ThreadDetail?): List<PostPage> {
-    val posts = listOf(detail?.main ?: item.head) + (detail?.continuation ?: item.continuation)
-    return posts.flatMap(::pagesOf)
+    val main = detail?.main ?: item.head
+    val posts = listOf(main) + (detail?.continuation ?: item.continuation).filter { it.author == main.author }
+    return posts.flatMapIndexed { i, post -> pagesOf(post).map { it.copy(part = i, parts = posts.size) } }
 }
 
 private fun pagesOf(post: ThreadPost): List<PostPage> {

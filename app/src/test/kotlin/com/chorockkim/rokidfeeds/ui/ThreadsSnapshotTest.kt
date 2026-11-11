@@ -79,6 +79,9 @@ class ThreadsSnapshotTest {
     fun threads_post() = shot { ThreadPostScreen(pages[0], 0, pages.size, comments = 3, now = now, image = fakePhoto) }
 
     @Test
+    fun threads_post_continuation() = shot { ThreadPostScreen(pages.last(), pages.lastIndex, pages.size, comments = 3, now = now, image = fakePhoto) }
+
+    @Test
     fun threads_photo() = shot { ThreadPhotoScreen(main, "photo", 0, 2, image = fakePhoto) }
 
     @Test

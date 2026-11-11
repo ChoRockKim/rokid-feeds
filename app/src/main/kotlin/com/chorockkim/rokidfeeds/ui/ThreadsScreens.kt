@@ -158,11 +158,18 @@ fun ThreadPostScreen(
 ) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Column(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (page.header) {
+            if (page.header && page.part > 0) {
+                // 작성자가 이어 쓴 글: 새 글처럼 보이지 않게 작은 표시만(같은 스레드의 다음 칸).
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.width(2.dp).height(16.dp).background(Glass.Primary40))
+                    Spacer(Modifier.width(8.dp))
+                    BasicText("이어서 ${page.part + 1}/${page.parts} · @${page.post.author}", style = ThreadsText.Time)
+                }
+            } else if (page.header) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Avatar(page.post, 30.dp)
                     Spacer(Modifier.width(10.dp))
-                    NameLine(page.post, now)
+                    NameLine(page.post, now, extra = if (page.parts > 1) "이어진 글 ${page.parts - 1}개" else null)
                 }
             }
             if (page.body.isNotBlank()) {

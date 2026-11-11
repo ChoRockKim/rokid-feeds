@@ -73,4 +73,12 @@ class ThreadsParserTest {
         assertEquals(1, ThreadsParser.items(lines).size)
         assertEquals(0, ThreadsParser.items("<html>not json</html>").size)
     }
+
+    @Test
+    fun `묶음에 섞인 다른 사람 글은 이어진 글로 넣지 않는다`() {
+        val json = """{"thread_items":[{"post":${post("1", "A", "alice", "원글")}},{"post":${post("2", "B", "bob", "다른 사람 답글")}},{"post":${post("3", "C", "alice", "이어서")}}]}"""
+        val item = ThreadsParser.items(json).single()
+        assertEquals("A", item.head.code)
+        assertEquals(listOf("C"), item.continuation.map { it.code })
+    }
 }
