@@ -86,27 +86,28 @@ class ThreadsSnapshotTest {
 
     private val longWithPhotos = ThreadPost(
         "20", "LP", "photo.writer",
-        List(12) { "[예시] 사진이 붙은 긴 글의 ${it + 1}번째 문장입니다." }.joinToString(" "),
+        List(24) { "[예시] 사진이 붙은 긴 글의 ${it + 1}번째 문장입니다." }.joinToString(" "),
         now - 1200, likeCount = 31, replyCount = 7, images = listOf("a", "b", "c"),
     )
 
-    @Test
-    fun threads_post_longWithPhotos_firstPage() {
-        val p = buildPostPages(ThreadItem(longWithPhotos), null)
-        shot { ThreadPostScreen(p[0], 0, p.size, comments = 7, now = now, image = fakePhoto) }
+    /** 앱과 같은 줄 재기로 나눈 쪽(글꼴이 달라도 넘치지 않는지 본다). */
+    private fun measuredShot(post: ThreadPost, page: (List<com.chorockkim.rokidfeeds.threads.PostPage>) -> Int) = paparazzi.snapshot {
+        val p = buildPostPages(ThreadItem(post), null, rememberPostSplitter())
+        val i = page(p)
+        GlassScreen(status) { ThreadPostScreen(p[i], i, p.size, comments = 7, now = now, image = fakePhoto) }
     }
 
     @Test
-    fun threads_post_longWithPhotos_lastPage() {
-        val p = buildPostPages(ThreadItem(longWithPhotos), null)
-        shot { ThreadPostScreen(p.last(), p.lastIndex, p.size, comments = 7, now = now, image = fakePhoto) }
-    }
+    fun threads_post_longWithPhotos_firstPage() = measuredShot(longWithPhotos) { 0 }
 
     @Test
-    fun threads_post_longTextOnly_firstPage() {
-        val p = buildPostPages(ThreadItem(longWithPhotos.copy(images = emptyList(), thumbs = emptyList())), null)
-        shot { ThreadPostScreen(p[0], 0, p.size, comments = 7, now = now, image = fakePhoto) }
-    }
+    fun threads_post_longWithPhotos_secondPage() = measuredShot(longWithPhotos) { 1 }
+
+    @Test
+    fun threads_post_longTextOnly_firstPage() = measuredShot(longWithPhotos.copy(images = emptyList(), thumbs = emptyList())) { 0 }
+
+    @Test
+    fun threads_post_longTextOnly_lastPage() = measuredShot(longWithPhotos.copy(images = emptyList(), thumbs = emptyList())) { it.lastIndex }
 
     @Test
     fun threads_photo() = shot { ThreadPhotoScreen(main, "photo", 0, 2, image = fakePhoto) }

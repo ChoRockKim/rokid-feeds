@@ -60,7 +60,8 @@ fun ThreadsApp(session: ThreadsSession, keys: Flow<NavKey>, onBack: () -> Unit) 
     }
 
     val detail = session.detail.takeIf { top != null && session.openItem == top.item }
-    val pages = remember(top?.item, detail) { top?.let { buildPostPages(it.item, detail) }.orEmpty() }
+    val split = rememberPostSplitter()
+    val pages = remember(top?.item, detail, split) { top?.let { buildPostPages(it.item, detail, split) }.orEmpty() }
     val photosPerPage = pages.map { it.photos.size }
     val comments = detail?.replies.orEmpty()
 

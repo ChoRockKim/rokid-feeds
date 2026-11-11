@@ -37,18 +37,28 @@ const val MAX_IMAGES_PER_POST = 10
  * 글 쪽 목록: 본문(긴 글은 여러 쪽) → 작성자가 이어 쓴 글. 각 글의 사진 줄은 그 글 첫 쪽 본문 아래에만(첫 쪽 본문을 줄인다).
  * 댓글은 쪽이 아니라 따로 목록으로 보여 준다([ThreadDetail.replies]).
  */
-fun buildPostPages(item: ThreadItem, detail: ThreadDetail?): List<PostPage> {
-    val main = detail?.main ?: item.head
-    val posts = listOf(main) + (detail?.continuation ?: item.continuation).filter { it.author == main.author }
-    return posts.flatMapIndexed { i, post -> pagesOf(post).map { it.copy(part = i, parts = posts.size) } }
+/**
+ * 본문을 쪽으로 나누는 방법. 앱에서는 실제 글꼴로 줄을 재서 나누고(ui/PostSplitter), 테스트에서는 글자 수로 나눈다.
+ * [withPhotos]면 첫 쪽에 사진 줄이 들어가므로 첫 쪽이 짧아야 한다.
+ */
+typealias TextSplitter = (text: String, withPhotos: Boolean) -> List<String>
+
+/** 글자 수로 나누기(테스트·기본값). 실제 화면은 글꼴에 따라 줄 수가 달라 넘칠 수 있어 앱은 줄을 재서 나눈다. */
+val CharSplitter: TextSplitter = { text, withPhotos ->
+    paginate(text, if (withPhotos) WITH_PHOTOS_CHARS else THREAD_FIRST_PAGE_CHARS, THREAD_PAGE_CHARS)
 }
 
-private fun pagesOf(post: ThreadPost): List<PostPage> {
+fun buildPostPages(item: ThreadItem, detail: ThreadDetail?, split: TextSplitter = CharSplitter): List<PostPage> {
+    val main = detail?.main ?: item.head
+    val posts = listOf(main) + (detail?.continuation ?: item.continuation).filter { it.author == main.author }
+    return posts.flatMapIndexed { i, post -> pagesOf(post, split).map { it.copy(part = i, parts = posts.size) } }
+}
+
+private fun pagesOf(post: ThreadPost, split: TextSplitter): List<PostPage> {
     val text = stripEmoji(post.text)
     val photos = post.images.take(MAX_IMAGES_PER_POST)
     val thumbs = post.thumbs.ifEmpty { post.images }.take(MAX_IMAGES_PER_POST)
-    val first = if (photos.isNotEmpty()) WITH_PHOTOS_CHARS else THREAD_FIRST_PAGE_CHARS
-    val chunks = if (text.isBlank()) listOf("") else paginate(text, first, THREAD_PAGE_CHARS)
+    val chunks = if (text.isBlank()) listOf("") else split(text, photos.isNotEmpty()).ifEmpty { listOf(text) }
     val pages = chunks.mapIndexed { i, body ->
         PostPage(post, body, header = i == 0, photos = photos, thumbs = if (i == 0) thumbs else emptyList())
     }.toMutableList()

@@ -174,7 +174,7 @@ fun ThreadPostScreen(
             }
             // 본문은 줄이지 않는다. 자리가 모자라면 사진 줄이 줄어든다(사진이 본문을 잘라 먹던 버그).
             if (page.body.isNotBlank()) {
-                BasicText(page.body, style = ThreadsText.Body.copy(fontSize = 14.sp, lineHeight = 20.sp))
+                BasicText(page.body, style = ThreadsText.Body.copy(fontSize = POST_BODY_SP, lineHeight = POST_LINE_SP))
             }
             if (page.thumbs.isNotEmpty()) {
                 Box(Modifier.weight(1f, fill = false)) {
