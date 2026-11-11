@@ -18,16 +18,17 @@ class ThreadPagesTest {
     }
 
     @Test
-    fun `긴 글은 여러 쪽이고 사진은 마지막 쪽이 짧으면 거기, 길면 다음 쪽에 따로`() {
+    fun `긴 글도 사진 줄은 첫 쪽에만, 사진만 있는 쪽은 없고 모든 쪽에서 탭하면 그 글의 사진`() {
         val long = List(40) { "문장 ${it}입니다." }.joinToString(" ")
         val pages = buildPostPages(ThreadItem(p("M", long, listOf("u"))), null)
         assertTrue(pages.size >= 2)
-        assertTrue(pages.first().header && !pages[1].header)
-        assertEquals(1, pages.count { it.photos.isNotEmpty() })
-        assertTrue(pages.last().actions)
-        assertTrue(pages.dropLast(1).none { it.actions })
-        val withPhotos = pages.single { it.photos.isNotEmpty() }
-        assertTrue(withPhotos.body.length <= WITH_PHOTOS_CHARS)
+        assertEquals(listOf("t-u"), pages.first().thumbs)
+        assertTrue(pages.drop(1).all { it.thumbs.isEmpty() })
+        assertTrue(pages.none { it.body.isBlank() })
+        assertTrue(pages.all { it.photos == listOf("u") })
+        assertTrue(pages.first().body.length <= WITH_PHOTOS_CHARS)
+        assertTrue(pages.first().header && pages.drop(1).none { it.header })
+        assertTrue(pages.last().actions && pages.dropLast(1).none { it.actions })
     }
 
     @Test

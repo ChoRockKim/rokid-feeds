@@ -168,8 +168,8 @@ fun ThreadPostScreen(
             if (page.body.isNotBlank()) {
                 BasicText(page.body, style = ThreadsText.Body.copy(fontSize = 14.sp, lineHeight = 20.sp), overflow = TextOverflow.Clip, modifier = Modifier.weight(1f, fill = false))
             }
-            if (page.photos.isNotEmpty()) {
-                ThumbRow(page.thumbs.ifEmpty { page.photos }, image, height = if (page.body.isBlank()) 120.dp else 72.dp)
+            if (page.thumbs.isNotEmpty()) {
+                ThumbRow(page.thumbs, image, height = if (page.body.isBlank()) 120.dp else 72.dp)
                 BasicText("탭하면 사진 크게 (${page.photos.size}장)", style = ThreadsText.Time)
             }
             if (page.actions) ActionRow(page.post)
