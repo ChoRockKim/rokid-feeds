@@ -14,7 +14,7 @@ import kotlinx.coroutines.withContext
  * Threads 화면 상태와 데이터 받기. TanStack Query처럼:
  * - **캐시 + stale-while-revalidate**: 목록·글 상세를 기기에 저장해 두고([ThreadsCache]) 켜자마자 저장본을 보여 준 뒤 뒤에서
  *   새로 받아 바꾼다. 글 상세는 [DETAIL_FRESH_MS] 안에 받은 것이면 다시 받지 않는다.
- * - **prefetch**: 목록에서 한 글에 머물면 그 글 상세를 미리 받아 둔다([prefetch]).
+ * - **미리 받기**: 글 상세에 들어가면 댓글만 뒤에서 미리 더 받는다(ThreadsApp). 목록에서는 미리 받지 않는다(피드가 버벅임).
  * - **무한 스크롤**: 목록·댓글 끝 근처에서만 다음 묶음을 받는다([loadMore], [loadMoreReplies]).
  * 글 페이지는 이미 떠 있는 threads.com 안에서 옮겨 간다([ThreadsWeb.openPost], 전체 다시 열기보다 빠름). 데이터가
  * [SPA_FALLBACK_MS] 안에 안 오면 전체를 다시 연다.
@@ -64,7 +64,7 @@ class ThreadsSession(
     /** 글 상세(글 코드별). 기기 저장본으로 채워지고, 받을 때마다 갱신된다. */
     private val details = HashMap<String, Cached>()
 
-    /** 지금 글 WebView가 받고 있는 글(prefetch든 열기든). 그 글의 응답만 받는다. */
+    /** 지금 글 WebView가 받고 있는 글. 그 글의 응답만 받는다. */
     private var target: ThreadItem? = null
     private var targetLoading = false
 
@@ -156,17 +156,6 @@ class ThreadsSession(
     }
 
     private fun isFresh(c: Cached?) = c != null && System.currentTimeMillis() - c.fetchedAt < DETAIL_FRESH_MS
-
-    /**
-     * 목록에서 한 글에 머물 때: 그 글 상세를 미리 받아 둔다. 글을 열어 둔 동안이나 이미 신선한 저장본이 있으면 하지 않는다.
-     */
-    fun prefetch(item: ThreadItem) {
-        if (openItem != null || targetLoading && target?.head?.code == item.head.code) return
-        scope.launch {
-            if (openItem != null || isFresh(cached(item.head.code))) return@launch
-            load(item)
-        }
-    }
 
     /** 글 WebView로 [item] 글 상세를 받는다. 이미 떠 있는 threads.com이면 페이지 안에서 옮겨 가고, 늦으면 다시 연다. */
     private fun load(item: ThreadItem) {

@@ -32,7 +32,7 @@ Rokid 안경 읽기 앱. 메인 메뉴에서 **뉴스**(연합뉴스·동아일�
 - 공식 API로는 홈 피드가 없어서 threads.com을 보이지 않는 WebView(`threads/ThreadsWeb.kt`)로 열고, `assets/threads_bridge.js`가 페이지가 받는 JSON(fetch·XHR·`script[data-sjs]`) 중 글 데이터만 앱으로 넘긴다. 파싱은 `threads/ThreadsParser.kt`(순수, 데이터 필드 기준, HTML 구조를 보지 않음). 필드를 바꿀 때는 실제 응답 모양을 먼저 확인하고 `ThreadsParserTest` 예시를 고친다. 실제 글 내용을 저장소에 넣지 않는다.
 - 사용자가 보는 만큼만 연다(목록 끝 근처에서 한 번 더 스크롤, 연 글 페이지 하나). 백그라운드 수집을 하지 않는다.
 - 로그인은 폰 링크(`threads/ThreadsLoginFlow`, `LoginRelay`): 안경은 코드만 보여 주고, 폰이 rokid-conversate 서버 `/login`으로 보낸 값을 받아 WebView 로그인 폼(데스크톱 UA)에 넣는다. 폰 키보드는 WebView 입력칸에 글자를 못 넣는다(사용자 확인). 비밀번호를 앱·서버에 저장하거나 로그에 남기지 않는다.
-- 데이터는 TanStack Query처럼(`threads/ThreadsSession`): 목록·글 상세를 기기에 저장(`ThreadsCache`, 하루, 글 100개, 로그아웃하면 지움)해 켜자마자 보여 주고 뒤에서 새로 받는다(stale-while-revalidate, 글 상세는 2분 안에 받은 것이면 다시 안 받음). 목록에서 1초 머문 글은 미리 받는다. 글은 이미 떠 있는 threads.com 안에서 옮겨 간다(pushState+popstate, 3초 안에 데이터가 없으면 새로 연다).
+- 데이터는 TanStack Query처럼(`threads/ThreadsSession`): 목록·글 상세를 기기에 저장(`ThreadsCache`, 하루, 글 100개, 로그아웃하면 지움)해 켜자마자 보여 주고 뒤에서 새로 받는다(stale-while-revalidate, 글 상세는 2분 안에 받은 것이면 다시 안 받음). 미리 받기는 글 상세의 댓글만(목록에서 미리 받으면 피드가 버벅였다). 글은 이미 떠 있는 threads.com 안에서 옮겨 간다(pushState+popstate, 3초 안에 데이터가 없으면 새로 연다).
 - 숨은 WebView는 데이터를 받는 동안만 켠다(계속 켜 두면 링 입력까지 느려졌다). WebView는 포커스를 받지 않는다(링 노드에서 포커스를 뺏으면 R08 링이 먹지 않는다).
 - 글 안 이동은 `nav/ThreadDetailNav`(순수): 글(본문 아래 사진) → 탭 사진 크게 → 아래로 댓글 목록 → 댓글 탭 = 그 댓글 열기, 댓글에서 뒤로 = 글.
 - 화면은 Threads 앱 모양(`ui/ThreadsLook.kt`): 아바타·굵은 이름·오른쪽 시각·선으로 그린 아이콘 줄·구분선. 사진·아바타는 녹색 단색 필터, 이모지는 뺀다(`util/Emoji.kt`).
