@@ -77,14 +77,23 @@ class ThreadsSession(
     private var postIdle: Job? = null
     private var feedSave: Job? = null
 
-    /** 받기를 시작하면 WebView를 켜고, 데이터가 오면 [IDLE_AFTER_DATA_MS] 뒤(이어 오는 응답까지 받고) 끈다. */
-    private fun feedBusy() { feedIdle?.cancel(); web.feedActive = true }
+    /**
+     * 받기를 시작하면 WebView를 켜고, 요청한 데이터가 오면 정해진 시간 뒤 끈다. 끄는 시점은 요청 기준으로 한 번만 정한다:
+     * threads.com은 보이는 동안 스스로 다음 글을 계속 받는데, 응답마다 타이머를 늘렸더니 끝없이 받아 10번째를 보는데
+     * 384개까지 받았다(사용자 확인).
+     */
+    private var feedRequested = false
+    private fun feedBusy() { feedIdle?.cancel(); feedRequested = true; web.feedActive = true }
     private fun feedDone(after: Long = IDLE_AFTER_DATA_MS) {
+        feedRequested = false
         feedIdle?.cancel()
         feedIdle = scope.launch { delay(after); web.feedActive = false }
     }
-    private fun postBusy() { postIdle?.cancel(); web.postActive = true }
+    private fun feedStopNow() { feedRequested = false; feedIdle?.cancel(); web.feedActive = false }
+    private var postRequested = false
+    private fun postBusy() { postIdle?.cancel(); postRequested = true; web.postActive = true }
     private fun postDone(after: Long = IDLE_AFTER_DATA_MS) {
+        postRequested = false
         postIdle?.cancel()
         postIdle = scope.launch { delay(after); web.postActive = false }
     }
@@ -123,6 +132,7 @@ class ThreadsSession(
      */
     fun loadMore() {
         if (loadingMore || feedEnd || feedLoading || feedStale) return
+        if (items.size - selectedIndex > MORE_WHEN_LEFT + 1) return // 아직 앞에 충분히 있다
         val now = System.currentTimeMillis()
         if (now - lastMoreAt < MORE_INTERVAL_MS) return
         lastMoreAt = now
@@ -262,15 +272,21 @@ class ThreadsSession(
                 }
                 val seen = items.mapTo(HashSet()) { it.head.pk }
                 val fresh = found.filter { seen.add(it.head.pk) }
-                items = items + fresh
-                feedLoading = false
+                // 보고 있는 곳보다 너무 앞서면 받지 않고 바로 끈다(페이지가 스스로 받아 오는 것).
+                val room = (selectedIndex + MAX_AHEAD - items.size).coerceAtLeast(0)
+                items = items + fresh.take(room.coerceAtLeast(if (items.isEmpty()) fresh.size else 0))
                 saveFeedSoon()
-                if (fresh.isNotEmpty() && loadingMore) {
-                    moreTimeout?.cancel()
-                    loadingMore = false
-                    emptyMore = 0
-                    feedDone(MORE_IDLE_MS)
-                } else feedDone()
+                when {
+                    items.size - selectedIndex >= MAX_AHEAD -> { feedLoading = false; loadingMore = false; moreTimeout?.cancel(); feedStopNow() }
+                    fresh.isNotEmpty() && loadingMore -> {
+                        moreTimeout?.cancel()
+                        loadingMore = false
+                        emptyMore = 0
+                        feedDone(MORE_IDLE_MS)
+                    }
+                    feedLoading -> { feedLoading = false; feedDone(FIRST_IDLE_MS) }
+                    !feedRequested -> Unit // 요청하지 않은 응답으로는 켜 둔 시간을 늘리지 않는다
+                }
             }
             ThreadsWeb.Source.Post -> {
                 val item = target ?: return
@@ -294,7 +310,7 @@ class ThreadsSession(
                         loadingMoreReplies = false
                         emptyReplies = 0
                         postDone(MORE_IDLE_MS)
-                    } else postDone()
+                    } else if (postRequested) postDone() // 요청하지 않은 응답(페이지가 스스로 받은 것)으로는 늘리지 않는다
                 }
             }
         }
@@ -321,6 +337,12 @@ class ThreadsSession(
         const val MORE_IDLE_MS = 500L
         const val MORE_SCROLL_DELAY_MS = 300L
         const val MAX_EMPTY_MORE = 3
+        /** 보고 있는 글보다 이만큼 넘게 앞서 받았으면 WebView를 끈다. */
+        const val MAX_AHEAD = 15
+        /** 남은 글이 이만큼 이하일 때만 더 불러온다. */
+        const val MORE_WHEN_LEFT = 3
+        /** 처음 불러오기: 첫 데이터가 온 뒤 이만큼만 더 켜 둔다(나머지 조각). */
+        const val FIRST_IDLE_MS = 1_500L
         /** 이 안에 받은 글 상세는 다시 받지 않는다(TanStack의 staleTime). */
         const val DETAIL_FRESH_MS = 2 * 60 * 1000L
         /** 페이지 안 이동 뒤 이만큼 데이터가 없으면 그 글 페이지를 새로 연다. */
