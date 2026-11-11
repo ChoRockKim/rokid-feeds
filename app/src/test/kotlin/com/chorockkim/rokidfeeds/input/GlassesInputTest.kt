@@ -55,16 +55,18 @@ class GlassesInputTest {
     }
 
     @Test
-    fun ringMediaKeysAreNotDebounced() {
+    fun ringMediaKeysUseAShortDebounce() {
         assertEquals(Action.NEXT, down(KeyEvent.KEYCODE_MEDIA_NEXT))
         now += 60
-        assertEquals(Action.NEXT, down(KeyEvent.KEYCODE_MEDIA_NEXT))
-        now += 60
+        assertEquals(Action.DUPLICATE, down(KeyEvent.KEYCODE_MEDIA_NEXT)) // 한 번에 두 번 온 것
+        now += GlassesInput.MEDIA_DEBOUNCE_MS
+        assertEquals(Action.NEXT, down(KeyEvent.KEYCODE_MEDIA_NEXT)) // 빠른 연속 넘김(240ms 안)은 받는다
+        now += 150
         assertEquals(Action.PREVIOUS, down(KeyEvent.KEYCODE_MEDIA_PREVIOUS))
-        // 터치패드 쓸기의 중복은 여전히 거른다.
+        // 터치패드 쓸기의 중복은 여전히 240ms로 거른다.
         now += 1_000
         assertEquals(Action.NEXT, down(KeyEvent.KEYCODE_DPAD_RIGHT))
-        now += 60
+        now += 150
         assertEquals(Action.DUPLICATE, down(GlassesInput.KEYCODE_ROKID_NEXT))
     }
 }

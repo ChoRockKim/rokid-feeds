@@ -20,8 +20,9 @@ import android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction
  */
 class RingTarget(context: Context, private val onAction: (GlassesInput.Action) -> Unit) : View(context) {
     /**
-     * 포커스를 잃으면 되찾을지. R08 브리지는 지금 포커스된 노드가 이 노드가 아니면 첫 링 입력을 "이 노드로 포커스 옮기기"에 써 버린다
-     * (입력 하나가 먹통). 그래서 평소에는 항상 포커스를 붙잡는다. 로그인 화면처럼 다른 View가 키 입력을 받아야 할 때만 false.
+     * 창이 다시 포커스를 받을 때 이 노드가 포커스를 되찾을지. R08 브리지는 지금 포커스된 노드가 이 노드가 아니면 첫 링 입력을
+     * "이 노드로 포커스 옮기기"에 써 버린다. 로그인 화면처럼 다른 View가 키 입력을 받아야 할 때만 false.
+     * (0.2.3에서는 포커스를 잃을 때마다 바로 되찾게 했는데, 다른 View와 포커스를 서로 뺏으며 링이 거의 안 먹었다. 그래서 뺐다.)
      */
     var keepFocus: () -> Boolean = { true }
 
@@ -33,11 +34,6 @@ class RingTarget(context: Context, private val onAction: (GlassesInput.Action) -
         // 화면 전체를 덮는 View라 포커스를 받으면 Android 기본 포커스 강조(테마 강조색, 반투명 청록)가 화면 전체에 깔린다.
         if (android.os.Build.VERSION.SDK_INT >= 26) defaultFocusHighlightEnabled = false
         contentDescription = "Rokid Feeds"
-    }
-
-    override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: android.graphics.Rect?) {
-        super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
-        if (!gainFocus) post { if (keepFocus() && !hasFocus()) requestFocus() }
     }
 
     override fun onWindowFocusChanged(hasWindowFocus: Boolean) {

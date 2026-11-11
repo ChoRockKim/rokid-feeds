@@ -34,10 +34,10 @@ class GlassesInput(private val clock: () -> Long = SystemClock::elapsedRealtime)
             KeyEvent.KEYCODE_DPAD_LEFT, KEYCODE_ROKID_PREVIOUS -> debounce(Action.PREVIOUS)
             KeyEvent.KEYCODE_DPAD_RIGHT, KEYCODE_ROKID_NEXT -> debounce(Action.NEXT)
 
-            // R08 링 미디어 키(브리지가 꺼져 있을 때)는 누를 때마다 한 번씩 온다. 터치패드 쓸기처럼 두 번 오지 않으므로
-            // 디바운스하지 않는다(240ms 안에 빨리 넘기면 입력이 버려져 링이 느리게 먹었다).
-            KeyEvent.KEYCODE_MEDIA_PREVIOUS -> Action.PREVIOUS
-            KeyEvent.KEYCODE_MEDIA_NEXT -> Action.NEXT
+            // R08 링 미디어 키(브리지가 꺼져 있을 때): 터치패드용 240ms는 빨리 넘길 때 입력을 버려서 길었고(0.2.2),
+            // 아예 안 거르면 한 번에 두 번 오는 경우 두 칸씩 넘어갈 수 있다(0.2.3). 짧게 120ms만 거른다.
+            KeyEvent.KEYCODE_MEDIA_PREVIOUS -> debounce(Action.PREVIOUS, MEDIA_DEBOUNCE_MS)
+            KeyEvent.KEYCODE_MEDIA_NEXT -> debounce(Action.NEXT, MEDIA_DEBOUNCE_MS)
 
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER,
             KeyEvent.KEYCODE_SPACE, KEYCODE_ROKID_DOUBLE_TAP,
@@ -50,9 +50,9 @@ class GlassesInput(private val clock: () -> Long = SystemClock::elapsedRealtime)
     }
 
     /** One physical swipe can arrive as two directional events; drop the second one. */
-    private fun debounce(action: Action): Action {
+    private fun debounce(action: Action, window: Long = DIRECTION_DEBOUNCE_MS): Action {
         val now = clock()
-        if (lastDirectionAt > 0L && now - lastDirectionAt < DIRECTION_DEBOUNCE_MS) {
+        if (lastDirectionAt > 0L && now - lastDirectionAt < window) {
             return Action.DUPLICATE
         }
         lastDirectionAt = now
@@ -64,5 +64,6 @@ class GlassesInput(private val clock: () -> Long = SystemClock::elapsedRealtime)
         const val KEYCODE_ROKID_PREVIOUS = 184
         const val KEYCODE_ROKID_DOUBLE_TAP = 202
         const val DIRECTION_DEBOUNCE_MS = 240L
+        const val MEDIA_DEBOUNCE_MS = 120L
     }
 }

@@ -34,6 +34,8 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
 
     private fun create(context: Context, source: Source): WebView = WebView(context).apply {
         setBackgroundColor(Color.BLACK)
+        // 보이지 않게 돌 때는 포커스를 받지 않는다(링 노드에서 포커스를 뺏으면 R08 링 입력이 먹지 않는다). 로그인 때만 켠다.
+        setInputEnabled(this, false)
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
         settings.mediaPlaybackRequiresUserGesture = true
@@ -79,6 +81,10 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
 
     fun openHome() = feed.loadUrl(HOME)
 
+    init {
+        applyVisibility()
+    }
+
     fun openPost(item: ThreadPost) = post.loadUrl(item.url)
 
     /** 목록 페이지를 아래로 내려 다음 글을 받게 한다(사람이 스크롤하는 것과 같다). */
@@ -123,7 +129,50 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
         post.destroy()
     }
 
+    private var login = false
+
+    /**
+     * WebView는 데이터를 받는 동안만 켠다(VISIBLE). 켜 두면 threads.com 앱 전체가 계속 돌고 그려져 우리 화면·링 입력까지
+     * 느려졌다(사용자 확인). 끌 때는 GONE이라 그리지 않는다. [ThreadsSession]이 받기 시작·끝에 맞춰 바꾼다.
+     */
+    var feedActive = false
+        set(value) { field = value; applyVisibility() }
+    var postActive = false
+        set(value) { field = value; applyVisibility() }
+
+    private fun applyVisibility() {
+        feed.visibility = if (login || feedActive) android.view.View.VISIBLE else android.view.View.GONE
+        post.visibility = if (postActive) android.view.View.VISIBLE else android.view.View.GONE
+    }
+
+    /** 로그인 화면(웹에 직접 입력)일 때만 [feed]를 계속 켜 두고 포커스를 받게 한다. */
+    fun setLoginMode(on: Boolean) {
+        login = on
+        setInputEnabled(feed, on)
+        applyVisibility()
+    }
+
+    /** Threads 화면 밖: 끄고 쉬게 한다. */
+    fun sleep() {
+        feedActive = false
+        postActive = false
+        feed.onPause()
+        post.onPause()
+    }
+
+    fun wake() {
+        feed.onResume()
+        post.onResume()
+    }
+
     companion object {
+        private fun setInputEnabled(view: WebView, on: Boolean) {
+            view.isFocusable = on
+            view.isFocusableInTouchMode = on
+            view.descendantFocusability = if (on) android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS else android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
+            if (!on) view.clearFocus()
+        }
+
         const val HOME = "https://www.threads.com/"
         const val LOGIN = "https://www.threads.com/login"
         // 인스타그램은 로그인 단계에서 거친다. 거기서는 입력칸 이동 도우미만 쓰고 글 JSON은 받지 않는다(Bridge가 threads 주소만 받음).

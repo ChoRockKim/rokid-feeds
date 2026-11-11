@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -166,11 +167,17 @@ fun PostBlock(
     avatarSize: Dp = 28.dp,
     note: String? = null,
 ) {
-    Row(modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-        Column(Modifier.width(avatarSize), horizontalAlignment = Alignment.CenterHorizontally) {
-            Avatar(post, avatarSize)
-            if (threadLine) Box(Modifier.padding(top = 4.dp).width(2.dp).weight(1f).background(Glass.Primary40, RoundedCornerShape(1.dp)))
-        }
+    // 이어진 글 세로선은 줄 전체 높이를 다시 재지 않고(IntrinsicSize는 줄마다 두 번 측정해 무거웠다) 그릴 때 한 번에 긋는다.
+    val lineColor = Glass.Primary40
+    Row(
+        modifier.fillMaxWidth().drawBehind {
+            if (threadLine) {
+                val x = avatarSize.toPx() / 2
+                drawLine(lineColor, Offset(x, avatarSize.toPx() + 4.dp.toPx()), Offset(x, size.height), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
+            }
+        },
+    ) {
+        Avatar(post, avatarSize)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             NameLine(post, now, extra = if (!actions && post.likeCount > 0) "좋아요 ${compactCount(post.likeCount)}" else null)

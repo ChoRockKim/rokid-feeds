@@ -34,6 +34,20 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
     private var lastMoreAt = 0L
     private var feedTimeout: Job? = null
     private var detailTimeout: Job? = null
+    private var feedIdle: Job? = null
+    private var postIdle: Job? = null
+
+    /** 받기를 시작하면 WebView를 켜고, 데이터가 오면 [IDLE_AFTER_DATA_MS] 뒤(이어 오는 응답까지 받고) 끈다. */
+    private fun feedBusy() { feedIdle?.cancel(); web.feedActive = true }
+    private fun feedDone(after: Long = IDLE_AFTER_DATA_MS) {
+        feedIdle?.cancel()
+        feedIdle = scope.launch { delay(after); web.feedActive = false }
+    }
+    private fun postBusy() { postIdle?.cancel(); web.postActive = true }
+    private fun postDone(after: Long = IDLE_AFTER_DATA_MS) {
+        postIdle?.cancel()
+        postIdle = scope.launch { delay(after); web.postActive = false }
+    }
 
     /** Threads 화면에 처음 들어올 때 한 번 홈을 연다. */
     fun start() {
@@ -46,9 +60,10 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
         loggedIn = ThreadsWeb.isLoggedIn()
         items = emptyList()
         feedLoading = true
+        feedBusy()
         web.openHome()
         feedTimeout?.cancel()
-        feedTimeout = scope.launch { delay(LOAD_TIMEOUT_MS); feedLoading = false }
+        feedTimeout = scope.launch { delay(LOAD_TIMEOUT_MS); feedLoading = false; feedDone(0) }
     }
 
     /** 목록 끝에 가까워졌을 때. 너무 자주 내리지 않는다. */
@@ -56,7 +71,10 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
         val now = System.currentTimeMillis()
         if (now - lastMoreAt < MORE_INTERVAL_MS) return
         lastMoreAt = now
-        web.loadMore()
+        feedBusy()
+        // 켜자마자 내리면 아직 그려지지 않아 페이지가 다음 글을 안 받을 수 있어 한 프레임 뒤에 내린다.
+        scope.launch { delay(MORE_SCROLL_DELAY_MS); web.loadMore() }
+        feedDone(MORE_TIMEOUT_MS)
     }
 
     fun open(item: ThreadItem) {
@@ -68,9 +86,10 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
             return
         }
         detailLoading = true
+        postBusy()
         web.openPost(item.head)
         detailTimeout?.cancel()
-        detailTimeout = scope.launch { delay(LOAD_TIMEOUT_MS); detailLoading = false }
+        detailTimeout = scope.launch { delay(LOAD_TIMEOUT_MS); detailLoading = false; postDone(0) }
     }
 
     fun close() {
@@ -78,6 +97,7 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
         detail = null
         detailLoading = false
         web.post.loadUrl("about:blank")
+        postDone(0)
     }
 
     /** 로그인 화면에서 돌아왔을 때: 로그인 상태가 바뀌었으면 목록을 새로 받는다. */
@@ -101,6 +121,7 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
                 val seen = items.mapTo(HashSet()) { it.head.pk }
                 items = items + found.filter { seen.add(it.head.pk) }
                 feedLoading = false
+                feedDone()
             }
             ThreadsWeb.Source.Post -> {
                 val item = openItem ?: return
@@ -111,6 +132,7 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
                     if (openItem?.head?.code != code) return@launch
                     detail = ThreadsParser.merge(detail, part, fallbackMain = item.head)?.also { details[code] = it }
                     detailLoading = false
+                    postDone()
                 }
             }
         }
@@ -119,5 +141,10 @@ class ThreadsSession(private val web: ThreadsWeb, private val scope: CoroutineSc
     private companion object {
         const val LOAD_TIMEOUT_MS = 15_000L
         const val MORE_INTERVAL_MS = 3_000L
+        /** 데이터가 온 뒤 이만큼 더 켜 두었다가 끈다(응답이 여러 개로 나뉘어 온다). */
+        const val IDLE_AFTER_DATA_MS = 2_000L
+        /** 더 불러오기: 응답이 없어도 이만큼 뒤에는 끈다. */
+        const val MORE_TIMEOUT_MS = 6_000L
+        const val MORE_SCROLL_DELAY_MS = 150L
     }
 }

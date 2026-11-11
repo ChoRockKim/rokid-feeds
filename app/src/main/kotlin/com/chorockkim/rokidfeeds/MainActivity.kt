@@ -311,8 +311,9 @@ class MainActivity : ComponentActivity() {
         val threadsScreen = next == Screen.Threads || next == Screen.ThreadsLogin
         if (threadsScreen) threads()
         threadsWeb?.let { w ->
-            // Threads 밖에서는 WebView를 쉬게 한다(배터리).
-            listOf(w.feed, w.post).forEach { if (threadsScreen) it.onResume() else it.onPause() }
+            // Threads 밖에서는 WebView를 쉬게 하고 빼 둔다(그리지 않음 → 뉴스·메뉴에서 링·화면이 가볍다).
+            if (threadsScreen) w.wake() else w.sleep()
+            w.setLoginMode(next == Screen.ThreadsLogin)
         }
         if (next == Screen.ThreadsLogin) {
             val feed = threadsWeb!!.feed
