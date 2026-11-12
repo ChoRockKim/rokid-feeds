@@ -214,42 +214,49 @@ fun ThreadPhotoScreen(
 }
 
 /**
- * 길쭉한 사진 확대: 사진을 위·아래 절반으로 잘라 [half] = 0이면 위쪽 절반, 1이면 아래쪽 절반을 띠에 꽉 맞춰 보여 준다
- * (두 번에 사진 전체). 쓸기로 위·아래, 뒤로 사진 화면.
+ * 길쭉한 사진 확대: 사진을 세로로 3조각으로 나누되 살짝 겹치게(각 조각 높이 [ZOOM_WINDOW], 시작 0%·30%·60%) 잘라
+ * [part]번째 조각을 띠에 꽉 맞춰 보여 준다. 앞 조각 아래쪽이 다음 조각 위쪽에 다시 보여 이어 읽기 쉽다.
+ * 쓸기로 위·가운데·아래, 뒤로 사진 화면.
  */
 @Composable
 fun ThreadPhotoZoomScreen(
     url: String,
-    half: Int,
+    part: Int,
     image: ImageSource = { rememberThreadImage(it) },
 ) {
+    val parts = com.chorockkim.rokidfeeds.nav.ZOOM_PARTS
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(12.dp))) {
+        Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
             val state = image(url)
             val bitmap = state.image
             if (bitmap == null) {
-                BasicText(if (state.failed) "사진을 불러오지 못했습니다" else "사진 불러오는 중…", style = Glass.BodySmall, modifier = Modifier.align(Alignment.Center))
+                BasicText(if (state.failed) "사진을 불러오지 못했습니다" else "사진 불러오는 중…", style = Glass.BodySmall)
             } else {
-                // 사진을 위·아래 절반으로 잘라 그 절반을 띠에 맞춘다(두 번에 사진 전체를 본다).
-                val h = bitmap.height
-                val top = if (half == 0) 0 else h / 2
-                val painter = remember(bitmap, half) {
+                val painter = remember(bitmap, part) {
+                    val (top, height) = zoomWindow(bitmap.height, part, parts)
                     androidx.compose.ui.graphics.painter.BitmapPainter(
                         bitmap,
                         srcOffset = androidx.compose.ui.unit.IntOffset(0, top),
-                        srcSize = androidx.compose.ui.unit.IntSize(bitmap.width, if (half == 0) h / 2 else h - h / 2),
+                        srcSize = androidx.compose.ui.unit.IntSize(bitmap.width, height),
                     )
                 }
-                Image(
-                    painter, null,
-                    contentScale = ContentScale.Fit,
-                    colorFilter = ThreadImages.GreenFilter,
-                    modifier = Modifier.fillMaxSize(),
-                )
+                Image(painter, null, contentScale = ContentScale.Fit, colorFilter = ThreadImages.GreenFilter, modifier = Modifier.fillMaxSize())
             }
         }
-        Footer("◀ ▶ " + (if (half == 0) "아래쪽 보기" else "위쪽 보기") + " · 뒤로 사진", if (half == 0) "위 절반" else "아래 절반")
+        val where = when (part) { 0 -> "위"; parts - 1 -> "아래"; else -> "가운데" }
+        Footer("◀ ▶ 위아래로 이동 · 뒤로 사진", "$where ${part + 1}/$parts")
     }
+}
+
+/** 조각 높이(사진 높이에 대한 비율). 3조각이 0%·30%·60%에서 시작해 10%씩 겹친다. */
+const val ZOOM_WINDOW = 0.4f
+
+/** [part]번째 조각의 (시작 y, 높이) 픽셀. */
+fun zoomWindow(imageHeight: Int, part: Int, parts: Int): Pair<Int, Int> {
+    val height = (imageHeight * ZOOM_WINDOW).toInt().coerceIn(1, imageHeight)
+    val step = if (parts > 1) (imageHeight - height) / (parts - 1) else 0
+    val top = (step * part.coerceIn(0, parts - 1)).coerceIn(0, imageHeight - height)
+    return top to height
 }
 
 /**

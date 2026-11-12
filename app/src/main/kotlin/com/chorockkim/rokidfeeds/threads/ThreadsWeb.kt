@@ -37,9 +37,8 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
 
     private fun create(context: Context, source: Source): WebView = WebView(context).apply {
         setBackgroundColor(Color.BLACK)
-        // 화면에 보일 일이 없다(Compose 화면 뒤, 로그인도 폰 링크). 투명도 0이면 앱 창에 합성하지 않아 데이터를 받는 동안
-        // 메인 스레드·그리기 부담이 준다(링 입력이 씹히던 원인 중 하나). 페이지는 VISIBLE이라 계속 "보이는" 것처럼 돈다.
-        alpha = 0f
+        // 투명도 0은 쓰지 않는다(0.2.17~0.2.19): 안드로이드는 투명도 0인 View를 그리지 않는데, WebView는 그려질 때 프레임을
+        // 만들어서 페이지가 멈추고 Threads가 아예 안 불러와졌다(사용자 확인). Compose 화면 뒤에 두고 받는 동안만 켠다.
         // 포커스를 받지 않는다(링 노드에서 포커스를 뺏으면 R08 링 입력이 먹지 않는다).
         setInputEnabled(this, false)
         settings.javaScriptEnabled = true

@@ -316,9 +316,10 @@ class ThreadsSession(
                 val found = withContext(Dispatchers.Default) { ThreadsParser.items(json) }
                 if (found.isEmpty()) return@launch
                 if (feedStale) {
-                    // 저장본을 보던 중 새 목록이 왔다: 아직 처음 줄이면 통째로 바꾸고, 이미 내려가 있으면 새 글만 뒤에 붙인다(자리가 튀지 않게).
+                    // 저장본을 보던 중 새 목록이 왔다: 이미 본 줄(지금 고른 줄까지)만 남기고 그 뒤는 새 목록으로 바꾼다.
+                    // (예전에는 내려가 있으면 새 글을 버려서 저장본만 보였다.)
                     feedStale = false
-                    if (selectedIndex == 0) items = emptyList()
+                    items = items.take(selectedIndex + 1).takeIf { selectedIndex > 0 }.orEmpty()
                 }
                 val seen = items.mapTo(HashSet()) { it.head.pk }
                 val fresh = found.filter { seen.add(it.head.pk) }

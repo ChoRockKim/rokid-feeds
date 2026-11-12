@@ -60,18 +60,25 @@ class ThreadDetailNavTest {
     }
 
     @Test
-    fun `길쭉한 사진은 탭하면 위쪽 절반, 쓸기로 아래쪽 절반, 뒤로 사진, 뒤로 글`() {
+    fun `길쭉한 사진은 탭하면 위 조각, 쓸기로 가운데·아래(끝에서 멈춤), 뒤로 사진, 뒤로 글`() {
         val tall: (Int, Int) -> Boolean = { page, photo -> page == 1 && photo == 1 }
         fun step(s: DetailState, k: NavKey) = ThreadDetailNav.reduce(s, k, photos, comments, tall).state
-        val photo1 = DetailState(Mode.Photos, page = 1, photo = 1)
-        val zoom = step(photo1, NavKey.Select)
-        assertEquals(DetailState(Mode.Zoom, page = 1, photo = 1, half = 0), zoom)
-        assertEquals(1, step(zoom, NavKey.Next).half)
-        assertEquals(0, step(step(zoom, NavKey.Next), NavKey.Previous).half)
+        val zoom = step(DetailState(Mode.Photos, page = 1, photo = 1), NavKey.Select)
+        assertEquals(DetailState(Mode.Zoom, page = 1, photo = 1, part = 0), zoom)
+        assertEquals(listOf(1, 2, 2), generateSequence(zoom) { step(it, NavKey.Next) }.drop(1).take(3).map { it.part }.toList())
+        assertEquals(1, step(step(step(zoom, NavKey.Next), NavKey.Next), NavKey.Previous).part)
         val back = step(step(zoom, NavKey.Next), NavKey.Back)
-        assertEquals(DetailState(Mode.Photos, page = 1, photo = 1, half = 0), back)
+        assertEquals(DetailState(Mode.Photos, page = 1, photo = 1, part = 0), back)
         assertEquals(Mode.Post, step(back, NavKey.Back).mode)
-        // 길쭉하지 않은 사진의 탭은 다음 사진
         assertEquals(DetailState(Mode.Photos, page = 1, photo = 1), step(DetailState(Mode.Photos, page = 1, photo = 0), NavKey.Select))
+    }
+
+    @Test
+    fun `세 조각은 사진 전체를 덮고 서로 살짝 겹친다`() {
+        val h = 1000
+        val w = (0 until 3).map { com.chorockkim.rokidfeeds.ui.zoomWindow(h, it, 3) }
+        assertEquals(0, w[0].first)
+        assertEquals(h, w[2].first + w[2].second)
+        assertTrue(w[0].first + w[0].second > w[1].first && w[1].first + w[1].second > w[2].first)
     }
 }
