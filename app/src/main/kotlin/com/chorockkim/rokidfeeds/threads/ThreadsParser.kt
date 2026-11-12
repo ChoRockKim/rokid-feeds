@@ -103,6 +103,7 @@ object ThreadsParser {
         } else listOf(o)
         val images = media.mapNotNull { bestImage(it, IMAGE_TARGET_WIDTH) }
         val thumbs = media.mapNotNull { bestImage(it, THUMB_TARGET_WIDTH) }
+        val tall = media.filter { bestImage(it, IMAGE_TARGET_WIDTH) != null }.map(::isTall)
         return ThreadPost(
             pk = o.optString("pk"),
             code = o.optString("code"),
@@ -113,9 +114,24 @@ object ThreadsParser {
             replyCount = info?.optInt("direct_reply_count") ?: 0,
             images = images,
             thumbs = thumbs.takeIf { it.size == images.size } ?: images,
+            tall = tall,
             hasVideo = (o.optJSONArray("video_versions")?.length() ?: 0) > 0,
             avatar = o.getJSONObject("user").optString("profile_pic_url").takeIf { it.startsWith("https://") },
         )
+    }
+
+    /** 사진이 세로로 길쭉한지: 원본 크기(original_width/height), 없으면 가장 큰 후보의 크기로. */
+    private fun isTall(o: JSONObject): Boolean {
+        var w = o.optInt("original_width")
+        var h = o.optInt("original_height")
+        if (w <= 0 || h <= 0) {
+            val c = o.optJSONObject("image_versions2")?.optJSONArray("candidates")?.let { a ->
+                (0 until a.length()).mapNotNull { a.optJSONObject(it) }.maxByOrNull { it.optInt("width") }
+            }
+            w = c?.optInt("width") ?: 0
+            h = c?.optInt("height") ?: 0
+        }
+        return w > 0 && h >= w * TALL_RATIO
     }
 
     private fun bestImage(o: JSONObject, target: Int): String? {

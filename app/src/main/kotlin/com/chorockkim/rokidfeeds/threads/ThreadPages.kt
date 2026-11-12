@@ -14,6 +14,8 @@ data class PostPage(
     val header: Boolean,
     val photos: List<String> = emptyList(),
     val thumbs: List<String> = emptyList(),
+    /** [photos]마다 길쭉한지(사진 화면에서 탭하면 반씩 확대). */
+    val tall: List<Boolean> = emptyList(),
     val actions: Boolean = false,
     /** 작성자가 이어 쓴 글이면 몇 번째(1부터, 본문은 0)와 전체 수. 화면에 "이어서 2/3"으로 보여 다른 글처럼 보이지 않게 한다. */
     val part: Int = 0,
@@ -58,9 +60,10 @@ private fun pagesOf(post: ThreadPost, split: TextSplitter): List<PostPage> {
     val text = stripEmoji(post.text)
     val photos = post.images.take(MAX_IMAGES_PER_POST)
     val thumbs = post.thumbs.ifEmpty { post.images }.take(MAX_IMAGES_PER_POST)
+    val tall = photos.indices.map { post.tall.getOrElse(it) { false } }
     val chunks = if (text.isBlank()) listOf("") else split(text, photos.isNotEmpty()).ifEmpty { listOf(text) }
     val pages = chunks.mapIndexed { i, body ->
-        PostPage(post, body, header = i == 0, photos = photos, thumbs = if (i == 0) thumbs else emptyList())
+        PostPage(post, body, header = i == 0, photos = photos, thumbs = if (i == 0) thumbs else emptyList(), tall = tall)
     }.toMutableList()
     if (photos.isEmpty() && text.isBlank()) {
         pages[0] = pages[0].copy(body = if (post.hasVideo) "(동영상)" else "(내용 없음)")

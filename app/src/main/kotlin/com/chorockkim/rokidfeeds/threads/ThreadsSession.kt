@@ -34,6 +34,22 @@ class ThreadsSession(
         private set
     var detailLoading by mutableStateOf(false)
         private set
+    /** 열어 둔 글의 상세(댓글)를 못 받았을 때 이유. 자동으로 [MAX_DETAIL_RETRIES]번 다시 하고, 그 뒤에는 탭으로 다시 시도. */
+    var detailError by mutableStateOf<String?>(null)
+        private set
+    private var detailRetries = 0
+    private var retryJob: Job? = null
+
+    /** 띠 위에 보여 줄 글 상세(댓글) 상태. 글을 열어 둔 동안만. */
+    val detailStatus: String?
+        get() = when {
+            openItem == null -> null
+            detailError != null && retryJob?.isActive == true -> "댓글 불러오기 실패 · 다시 시도 중 ($detailRetries/$MAX_DETAIL_RETRIES)"
+            detailError != null -> "댓글 불러오기 실패 · 탭하면 다시 시도"
+            detailLoading -> "댓글 불러오는 중…"
+            loadingMoreReplies -> "댓글 더 불러오는 중…"
+            else -> null
+        }
     var loggedIn by mutableStateOf(ThreadsWeb.isLoggedIn())
         private set
     /** 더 불러오는 중(한 번에 하나만). */
@@ -164,6 +180,7 @@ class ThreadsSession(
     private fun load(item: ThreadItem, reload: Boolean = false) {
         target = item
         targetLoading = true
+        if (openItem == item && detail == null) detailLoading = true
         postBusy()
         val inPage = if (reload) { web.reloadPost(item.head); false } else web.openPost(item.head)
         fallback?.cancel()
@@ -175,13 +192,34 @@ class ThreadsSession(
         detailTimeout = scope.launch {
             delay(LOAD_TIMEOUT_MS)
             if (target == item) targetLoading = false
-            if (openItem == item) detailLoading = false
             postDone(0)
+            if (openItem == item) {
+                detailLoading = false
+                // 아무것도 못 받았다: 실패로 보이고, 몇 번은 저절로 다시 받는다.
+                detailError = "응답 없음"
+                if (detailRetries < MAX_DETAIL_RETRIES) {
+                    detailRetries++
+                    retryJob = scope.launch { delay(RETRY_DELAY_MS); if (openItem == item) load(item, reload = true) }
+                }
+            }
         }
+    }
+
+    /** 댓글 화면에서 탭: 처음부터 다시 받는다. */
+    fun retryDetail() {
+        val item = openItem ?: return
+        retryJob?.cancel()
+        detailError = null
+        detailRetries = 0
+        detailLoading = detail == null
+        load(item, reload = true)
     }
 
     fun open(item: ThreadItem) {
         openItem = item
+        detailError = null
+        detailRetries = 0
+        retryJob?.cancel()
         loadingMoreReplies = false
         emptyReplies = 0
         repliesEnd = false
@@ -316,6 +354,8 @@ class ThreadsSession(
                     if (openItem?.head?.code == code) {
                         detail = merged
                         detailLoading = false
+                        detailError = null
+                        retryJob?.cancel()
                     }
                     if (loadingMoreReplies && merged.replies.size > before) {
                         repliesTimeout?.cancel()
@@ -359,5 +399,8 @@ class ThreadsSession(
         const val DETAIL_FRESH_MS = 2 * 60 * 1000L
         /** 페이지 안 이동 뒤 이만큼 데이터가 없으면 그 글 페이지를 새로 연다. */
         const val SPA_FALLBACK_MS = 3_000L
+        /** 글 상세를 못 받았을 때 저절로 다시 받는 횟수와 간격. */
+        const val MAX_DETAIL_RETRIES = 2
+        const val RETRY_DELAY_MS = 3_000L
     }
 }

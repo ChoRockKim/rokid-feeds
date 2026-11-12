@@ -58,4 +58,20 @@ class ThreadDetailNavTest {
         assertEquals(DetailState(Mode.Comments, page = 1, comment = 3), ThreadDetailNav.normalize(DetailState(Mode.Comments, page = 1, comment = 9), photos, 4))
         assertEquals(DetailState(Mode.Post, page = 0), ThreadDetailNav.normalize(DetailState(Mode.Photos, page = 0, photo = 2), photos, 4))
     }
+
+    @Test
+    fun `길쭉한 사진은 탭하면 위쪽 절반, 쓸기로 아래쪽 절반, 뒤로 사진, 뒤로 글`() {
+        val tall: (Int, Int) -> Boolean = { page, photo -> page == 1 && photo == 1 }
+        fun step(s: DetailState, k: NavKey) = ThreadDetailNav.reduce(s, k, photos, comments, tall).state
+        val photo1 = DetailState(Mode.Photos, page = 1, photo = 1)
+        val zoom = step(photo1, NavKey.Select)
+        assertEquals(DetailState(Mode.Zoom, page = 1, photo = 1, half = 0), zoom)
+        assertEquals(1, step(zoom, NavKey.Next).half)
+        assertEquals(0, step(step(zoom, NavKey.Next), NavKey.Previous).half)
+        val back = step(step(zoom, NavKey.Next), NavKey.Back)
+        assertEquals(DetailState(Mode.Photos, page = 1, photo = 1, half = 0), back)
+        assertEquals(Mode.Post, step(back, NavKey.Back).mode)
+        // 길쭉하지 않은 사진의 탭은 다음 사진
+        assertEquals(DetailState(Mode.Photos, page = 1, photo = 1), step(DetailState(Mode.Photos, page = 1, photo = 0), NavKey.Select))
+    }
 }

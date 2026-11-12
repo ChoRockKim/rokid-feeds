@@ -16,6 +16,8 @@ data class ThreadPost(
     val hasVideo: Boolean = false,
     /** 목록 썸네일용 작은 사진 주소([images]와 같은 순서). */
     val thumbs: List<String> = emptyList(),
+    /** 사진마다 세로로 길쭉한지(세로 ≥ 가로 × [TALL_RATIO], [images]와 같은 순서). 길쭉하면 반씩 확대해 볼 수 있다. */
+    val tall: List<Boolean> = emptyList(),
     /** 프로필 사진 주소. 지금은 받지 않고 머리글자로 그린다(속도). */
     val avatar: String? = null,
 ) {
@@ -25,6 +27,9 @@ data class ThreadPost(
 /**
  * 목록의 한 줄: 작성자가 이어 쓴 글 묶음(`thread_items`). [head]가 첫 글이고 [continuation]은 같은 작성자가 이어 쓴 글.
  */
+/** 이 비율 이상이면 "길쭉한 사진"(세로 / 가로). 띠(480×282)에 통째로 맞추면 너무 작아진다. */
+const val TALL_RATIO = 1.3f
+
 data class ThreadItem(val head: ThreadPost, val continuation: List<ThreadPost> = emptyList())
 
 /** 글 상세 페이지에서 꺼낸 것: 본문, 작성자가 이어 쓴 글, 댓글. */

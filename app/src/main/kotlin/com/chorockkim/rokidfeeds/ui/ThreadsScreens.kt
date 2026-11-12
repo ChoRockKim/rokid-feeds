@@ -197,6 +197,7 @@ fun ThreadPhotoScreen(
     index: Int,
     total: Int,
     image: ImageSource = { rememberThreadImage(it) },
+    tall: Boolean = false,
 ) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
@@ -208,7 +209,46 @@ fun ThreadPhotoScreen(
                 else -> BasicText("사진 불러오는 중…", style = Glass.BodySmall)
             }
         }
-        Footer("@${post.author} · ◀ ▶ 다른 사진 · 뒤로 글", "${index + 1}/$total")
+        Footer("@${post.author} · ◀ ▶ 다른 사진" + (if (tall) " · 탭 확대" else "") + " · 뒤로 글", "${index + 1}/$total")
+    }
+}
+
+/**
+ * 길쭉한 사진 확대: 사진을 위·아래 절반으로 잘라 [half] = 0이면 위쪽 절반, 1이면 아래쪽 절반을 띠에 꽉 맞춰 보여 준다
+ * (두 번에 사진 전체). 쓸기로 위·아래, 뒤로 사진 화면.
+ */
+@Composable
+fun ThreadPhotoZoomScreen(
+    url: String,
+    half: Int,
+    image: ImageSource = { rememberThreadImage(it) },
+) {
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(12.dp))) {
+            val state = image(url)
+            val bitmap = state.image
+            if (bitmap == null) {
+                BasicText(if (state.failed) "사진을 불러오지 못했습니다" else "사진 불러오는 중…", style = Glass.BodySmall, modifier = Modifier.align(Alignment.Center))
+            } else {
+                // 사진을 위·아래 절반으로 잘라 그 절반을 띠에 맞춘다(두 번에 사진 전체를 본다).
+                val h = bitmap.height
+                val top = if (half == 0) 0 else h / 2
+                val painter = remember(bitmap, half) {
+                    androidx.compose.ui.graphics.painter.BitmapPainter(
+                        bitmap,
+                        srcOffset = androidx.compose.ui.unit.IntOffset(0, top),
+                        srcSize = androidx.compose.ui.unit.IntSize(bitmap.width, if (half == 0) h / 2 else h - h / 2),
+                    )
+                }
+                Image(
+                    painter, null,
+                    contentScale = ContentScale.Fit,
+                    colorFilter = ThreadImages.GreenFilter,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        Footer("◀ ▶ " + (if (half == 0) "아래쪽 보기" else "위쪽 보기") + " · 뒤로 사진", if (half == 0) "위 절반" else "아래 절반")
     }
 }
 
@@ -226,6 +266,8 @@ fun ThreadCommentsScreen(
     now: Long = System.currentTimeMillis() / 1000,
     image: ImageSource = { rememberThreadImage(it) },
     lazyThumbs: Boolean = true,
+    /** 댓글을 못 받았을 때 이유(있으면 탭 = 다시 시도). */
+    error: String? = null,
 ) {
     val listState = rememberLazyListState()
     LaunchedEffect(selected, comments.size) { if (comments.isNotEmpty()) listState.scrollToItem(selected.coerceIn(0, comments.lastIndex)) }
@@ -242,7 +284,15 @@ fun ThreadCommentsScreen(
         Divider()
         if (comments.isEmpty()) {
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                BasicText(if (loading) "$title 불러오는 중…" else "$title 이 없습니다", style = Glass.BodySmall)
+                BasicText(
+                    when {
+                        loading -> "$title 불러오는 중…"
+                        error != null -> "$title 불러오기 실패 ($error) · 탭하면 다시 시도"
+                        expected > 0 -> "$title 을 아직 못 받았습니다 · 탭하면 다시 시도"
+                        else -> "$title 이 없습니다"
+                    },
+                    style = Glass.BodySmall,
+                )
             }
         } else {
             LazyColumn(state = listState, modifier = Modifier.fillMaxWidth().weight(1f)) {
@@ -263,7 +313,7 @@ fun ThreadCommentsScreen(
                 }
             }
         }
-        Footer("◀ ▶ 고르기 · 탭 열기 · 뒤로 글", if (comments.isEmpty()) "" else "${selected + 1}번째 $title")
+        Footer(if (comments.isEmpty()) "탭 다시 시도 · 뒤로 글" else "◀ ▶ 고르기 · 탭 열기 · 뒤로 글", if (comments.isEmpty()) "" else "${selected + 1}번째 $title")
     }
 }
 

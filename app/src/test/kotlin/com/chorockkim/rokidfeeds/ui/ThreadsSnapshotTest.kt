@@ -109,6 +109,23 @@ class ThreadsSnapshotTest {
     @Test
     fun threads_post_longTextOnly_lastPage() = measuredShot(longWithPhotos.copy(images = emptyList(), thumbs = emptyList())) { it.lastIndex }
 
+    /** 세로로 긴 가짜 사진: 위에 "위", 아래에 "아래"를 써서 확대한 절반이 맞는지 본다. */
+    private val tallPhoto: @Composable (String) -> ImageState = {
+        val bitmap = Bitmap.createBitmap(400, 1200, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bitmap)
+        c.drawPaint(Paint().apply { shader = LinearGradient(0f, 0f, 0f, 1200f, 0xFF4060FF.toInt(), 0xFFFFFFFF.toInt(), Shader.TileMode.CLAMP) })
+        val text = Paint().apply { color = 0xFF000000.toInt(); textSize = 90f; isAntiAlias = true }
+        c.drawText("TOP", 120f, 110f, text)
+        c.drawText("BOTTOM", 50f, 1170f, text)
+        ImageState(bitmap.asImageBitmap(), failed = false)
+    }
+
+    @Test
+    fun threads_zoom_top() = shot { ThreadPhotoZoomScreen("tall", half = 0, image = tallPhoto) }
+
+    @Test
+    fun threads_zoom_bottom() = shot { ThreadPhotoZoomScreen("tall", half = 1, image = tallPhoto) }
+
     @Test
     fun threads_photo() = shot { ThreadPhotoScreen(main, "photo", 0, 2, image = fakePhoto) }
 

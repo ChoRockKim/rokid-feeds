@@ -9,10 +9,12 @@ package com.chorockkim.rokidfeeds.nav
  * 흐름(사용자 요청 2026-11-11): 글에서 탭 → 사진 크게(사진이 있으면) → 위아래 쓸기로 다른 사진 → 뒤로 → 글.
  * 글에서 아래로(다음) 쓸기 → 다음 쪽 → 마지막 쪽 다음은 댓글 목록. 댓글에서 탭 → 그 댓글을 연다(답글·사진).
  * 댓글에서 뒤로 → 글(첫 쪽), 글에서 뒤로 → 밖([DetailOutcome.back]: 이전 글이나 목록).
+ * 사진 화면에서 길쭉한 사진이면 탭 → 위쪽 절반 확대 → 쓸기 → 아래쪽 절반 → 뒤로 → 사진 → 뒤로 → 글.
  */
-enum class Mode { Post, Photos, Comments }
+/** [Mode.Zoom]: 길쭉한 사진을 띠 폭에 맞춰 확대해 [DetailState.half] = 0 위쪽 절반, 1 아래쪽 절반. */
+enum class Mode { Post, Photos, Zoom, Comments }
 
-data class DetailState(val mode: Mode = Mode.Post, val page: Int = 0, val photo: Int = 0, val comment: Int = 0)
+data class DetailState(val mode: Mode = Mode.Post, val page: Int = 0, val photo: Int = 0, val comment: Int = 0, val half: Int = 0)
 
 data class DetailOutcome(val state: DetailState, val openComment: Int? = null, val back: Boolean = false)
 
@@ -20,7 +22,13 @@ object ThreadDetailNav {
     /**
      * [photosPerPage]는 글 쪽마다 붙은 사진 수(쪽 수 = 크기), [comments]는 지금까지 받은 댓글 수.
      */
-    fun reduce(state: DetailState, key: NavKey, photosPerPage: List<Int>, comments: Int): DetailOutcome {
+    fun reduce(
+        state: DetailState,
+        key: NavKey,
+        photosPerPage: List<Int>,
+        comments: Int,
+        isTall: (page: Int, photo: Int) -> Boolean = { _, _ -> false },
+    ): DetailOutcome {
         val s = normalize(state, photosPerPage, comments)
         val lastPage = (photosPerPage.size - 1).coerceAtLeast(0)
         return when (s.mode) {
@@ -44,10 +52,18 @@ object ThreadDetailNav {
             Mode.Photos -> {
                 val last = (photosPerPage.getOrElse(s.page) { 0 } - 1).coerceAtLeast(0)
                 when (key) {
-                    NavKey.Next, NavKey.Select -> DetailOutcome(s.copy(photo = (s.photo + 1).coerceAtMost(last)))
+                    NavKey.Select -> DetailOutcome(
+                        if (isTall(s.page, s.photo)) s.copy(mode = Mode.Zoom, half = 0) else s.copy(photo = (s.photo + 1).coerceAtMost(last)),
+                    )
+                    NavKey.Next -> DetailOutcome(s.copy(photo = (s.photo + 1).coerceAtMost(last)))
                     NavKey.Previous -> DetailOutcome(s.copy(photo = (s.photo - 1).coerceAtLeast(0)))
                     NavKey.Back -> DetailOutcome(s.copy(mode = Mode.Post))
                 }
+            }
+            Mode.Zoom -> when (key) {
+                NavKey.Next, NavKey.Select -> DetailOutcome(s.copy(half = 1))
+                NavKey.Previous -> DetailOutcome(s.copy(half = 0))
+                NavKey.Back -> DetailOutcome(s.copy(mode = Mode.Photos, half = 0))
             }
             Mode.Comments -> when (key) {
                 NavKey.Next -> DetailOutcome(s.copy(comment = (s.comment + 1).coerceAtMost((comments - 1).coerceAtLeast(0))))
@@ -67,6 +83,7 @@ object ThreadDetailNav {
         return when (state.mode) {
             Mode.Post -> state.copy(page = page)
             Mode.Photos -> if (photos == 0) DetailState(Mode.Post, page) else state.copy(page = page, photo = state.photo.coerceIn(0, photos - 1))
+            Mode.Zoom -> if (photos == 0) DetailState(Mode.Post, page) else state.copy(page = page, photo = state.photo.coerceIn(0, photos - 1), half = state.half.coerceIn(0, 1))
             Mode.Comments -> if (comments == 0) DetailState(Mode.Post, page) else state.copy(page = page, comment = state.comment.coerceIn(0, comments - 1))
         }
     }

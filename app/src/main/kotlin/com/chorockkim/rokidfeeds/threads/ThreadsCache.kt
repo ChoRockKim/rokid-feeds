@@ -56,7 +56,7 @@ class ThreadsCache(private val dir: File, private val clock: () -> Long = System
         fun postJson(p: ThreadPost): JSONObject = JSONObject()
             .put("pk", p.pk).put("code", p.code).put("author", p.author).put("text", p.text).put("takenAt", p.takenAt)
             .put("likes", p.likeCount).put("replies", p.replyCount).put("images", JSONArray(p.images)).put("thumbs", JSONArray(p.thumbs))
-            .put("video", p.hasVideo).put("avatar", p.avatar ?: "")
+            .put("video", p.hasVideo).put("avatar", p.avatar ?: "").put("tall", JSONArray(p.tall))
 
         fun postOf(o: JSONObject): ThreadPost? {
             val pk = o.optString("pk").takeIf { it.isNotEmpty() } ?: return null
@@ -65,6 +65,7 @@ class ThreadsCache(private val dir: File, private val clock: () -> Long = System
                 pk = pk, code = o.optString("code"), author = o.optString("author"), text = o.optString("text"),
                 takenAt = o.optLong("takenAt"), likeCount = o.optInt("likes"), replyCount = o.optInt("replies"),
                 images = strings("images"), thumbs = strings("thumbs"), hasVideo = o.optBoolean("video"),
+                tall = o.optJSONArray("tall")?.let { a -> (0 until a.length()).map { a.optBoolean(it) } }.orEmpty(),
                 avatar = o.optString("avatar").takeIf { it.isNotEmpty() },
             )
         }

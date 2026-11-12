@@ -163,6 +163,7 @@ class MainActivity : ComponentActivity() {
 
     /** 가운데 알약: Wi-Fi·인터넷 상태가 우선, 그다음 Threads 데이터 받는 중(Threads 화면에서만), 지난번 튕긴 이유. */
     private fun notice(): String? = WifiEnabler.label(wifiStatus, online)
+        ?: threadsSession?.detailStatus?.takeIf { screen == Screen.Threads }
         ?: "Threads 불러오는 중…".takeIf { threadsWeb?.busy == true && screen == Screen.Threads }
         ?: crashText
 
