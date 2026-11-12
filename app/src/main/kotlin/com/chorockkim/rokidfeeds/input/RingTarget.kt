@@ -36,6 +36,29 @@ class RingTarget(context: Context, private val onAction: (GlassesInput.Action) -
         contentDescription = "Rokid Feeds"
     }
 
+    private var downX = 0f
+    private var downY = 0f
+    private val minSwipe = 48 * context.resources.displayMetrics.density
+
+    /**
+     * 브리지가 노드를 못 찾으면(우리 메인 스레드가 바쁘면 55ms 안에 트리를 다 못 읽는다) 화면에 스와이프 제스처를 보낸다
+     * (GestureDispatcher.verticalSwipe: 다음 = 아래→위, 이전 = 위→아래). 예전에는 이 제스처를 받지 않아 WebView가 데이터를
+     * 받는 동안 링 입력이 씹혔다(사용자 확인). 스와이프도 같은 동작으로 받고, 짧게 누른 것은 원래대로 클릭(선택)이다.
+     */
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
+        when (event.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> { downX = event.x; downY = event.y }
+            android.view.MotionEvent.ACTION_UP -> swipeAction(event.x - downX, event.y - downY, minSwipe)?.let { action ->
+                isPressed = false
+                cancelPendingInputEvents()
+                onAction(action)
+                return true
+            }
+        }
+        return super.onTouchEvent(event)
+    }
+
     override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
         super.onWindowFocusChanged(hasWindowFocus)
         if (hasWindowFocus && keepFocus() && !hasFocus()) requestFocus()
@@ -71,5 +94,20 @@ class RingTarget(context: Context, private val onAction: (GlassesInput.Action) -
         super.performClick()
         onAction(GlassesInput.Action.SELECT)
         return true
+    }
+}
+
+/**
+ * 스와이프 → 동작. [minDistance]보다 짧으면 null(탭). 세로가 더 길면 위로 = 다음, 아래로 = 이전(브리지의 verticalSwipe).
+ * 가로가 더 길면 왼쪽으로 = 다음, 오른쪽으로 = 이전(브리지의 horizontalSwipe: 다음 = 78% → 22%).
+ */
+fun swipeAction(dx: Float, dy: Float, minDistance: Float): GlassesInput.Action? {
+    val ax = kotlin.math.abs(dx)
+    val ay = kotlin.math.abs(dy)
+    if (maxOf(ax, ay) < minDistance) return null
+    return if (ay >= ax) {
+        if (dy < 0) GlassesInput.Action.NEXT else GlassesInput.Action.PREVIOUS
+    } else {
+        if (dx < 0) GlassesInput.Action.NEXT else GlassesInput.Action.PREVIOUS
     }
 }

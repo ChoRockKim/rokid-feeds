@@ -157,12 +157,15 @@ class ThreadsSession(
 
     private fun isFresh(c: Cached?) = c != null && System.currentTimeMillis() - c.fetchedAt < DETAIL_FRESH_MS
 
-    /** 글 WebView로 [item] 글 상세를 받는다. 이미 떠 있는 threads.com이면 페이지 안에서 옮겨 가고, 늦으면 다시 연다. */
-    private fun load(item: ThreadItem) {
+    /**
+     * 글 WebView로 [item] 글 상세를 받는다. 이미 떠 있는 threads.com이면 페이지 안에서 옮겨 가고, 늦으면 다시 연다.
+     * [reload]면 처음부터 다시 연다(연결이 끊겼다 돌아와 페이지가 망가졌을 수 있을 때).
+     */
+    private fun load(item: ThreadItem, reload: Boolean = false) {
         target = item
         targetLoading = true
         postBusy()
-        val inPage = web.openPost(item.head)
+        val inPage = if (reload) { web.reloadPost(item.head); false } else web.openPost(item.head)
         fallback?.cancel()
         if (inPage) fallback = scope.launch {
             delay(SPA_FALLBACK_MS)
@@ -226,6 +229,26 @@ class ThreadsSession(
         detail = null
         detailLoading = false
         postDone(0)
+    }
+
+    /**
+     * 인터넷이 다시 연결됐을 때. 끊긴 동안 요청이 실패해 "목록 끝"으로 잘못 보거나 페이지가 오류 상태로 남아 멈춰 있었다
+     * (사용자 확인). 실패 횟수·끝 판정을 지우고 홈을 다시 받는다(이미 내려가 있으면 새 글은 뒤에 붙인다). 글을 열어 두었으면
+     * 그 글도 처음부터 다시 받는다.
+     */
+    fun onReconnected() {
+        if (!started) return
+        emptyReplies = 0
+        repliesEnd = false
+        loadingMoreReplies = false
+        repliesTimeout?.cancel()
+        feedStale = items.isNotEmpty()
+        refresh(keepItems = true)
+        openItem?.let { item ->
+            fallback?.cancel()
+            if (detail == null) detailLoading = true
+            load(item, reload = true)
+        }
     }
 
     /** 로그인 화면에서 돌아왔을 때: 로그인 상태가 바뀌었으면 목록을 새로 받는다. */

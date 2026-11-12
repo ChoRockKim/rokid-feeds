@@ -37,6 +37,9 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
 
     private fun create(context: Context, source: Source): WebView = WebView(context).apply {
         setBackgroundColor(Color.BLACK)
+        // 화면에 보일 일이 없다(Compose 화면 뒤, 로그인도 폰 링크). 투명도 0이면 앱 창에 합성하지 않아 데이터를 받는 동안
+        // 메인 스레드·그리기 부담이 준다(링 입력이 씹히던 원인 중 하나). 페이지는 VISIBLE이라 계속 "보이는" 것처럼 돈다.
+        alpha = 0f
         // 포커스를 받지 않는다(링 노드에서 포커스를 뺏으면 R08 링 입력이 먹지 않는다).
         setInputEnabled(this, false)
         settings.javaScriptEnabled = true

@@ -55,7 +55,7 @@ fun AppRoot(
             SettingsScreen(app.settingsSelected, threadsLoggedIn, app.confirmLogout, com.chorockkim.rokidfeeds.BuildConfig.VERSION_NAME)
         }
         Screen.News -> NewsApp(keys = keys, online = online, onBack = toMenu, api = api)
-        Screen.Threads -> if (threads != null) ThreadsApp(session = threads, keys = keys, onBack = toMenu) else {
+        Screen.Threads -> if (threads != null) ThreadsApp(session = threads, keys = keys, onBack = toMenu, online = online) else {
             val onKey by rememberUpdatedState { key: NavKey -> if (key == NavKey.Back) toMenu() }
             LaunchedEffect(keys) { keys.collect { onKey(it) } }
             LoadingView()

@@ -33,10 +33,11 @@ private data class Opened(val item: ThreadItem, val state: DetailState = DetailS
  *   댓글 탭 = 그 댓글을 열기(답글·사진), 댓글에서 뒤로 = 글, 글에서 뒤로 = 이전 글 → 목록.
  */
 @Composable
-fun ThreadsApp(session: ThreadsSession, keys: Flow<NavKey>, onBack: () -> Unit) {
+fun ThreadsApp(session: ThreadsSession, keys: Flow<NavKey>, onBack: () -> Unit, online: Boolean = true) {
     var list by rememberSaveable(stateSaver = NavStateSaver) { mutableStateOf(NavState()) }
     val stack = remember { mutableStateListOf<Opened>() }
     LaunchedEffect(Unit) { session.start() }
+    // 연결이 끊겼다 돌아오면 다시 받는 것은 Activity가 한다(어느 화면에 있든, MainActivity.watchNetwork).
 
     val items = session.items
     val listNav = remember(items) { Navigator(items.size) { 1 } }

@@ -358,7 +358,11 @@ class MainActivity : ComponentActivity() {
     private fun watchNetwork() {
         val cm = getSystemService(ConnectivityManager::class.java) ?: return
         fun hasInternet(caps: NetworkCapabilities?) = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
-        fun show(isOnline: Boolean) = runOnUiThread { online = isOnline }
+        fun show(isOnline: Boolean) = runOnUiThread {
+            // 끊겼다 다시 연결되면 Threads가 멈춰 있지 않게 다시 받는다(어느 화면에 있든).
+            if (isOnline && !online) threadsSession?.onReconnected()
+            online = isOnline
+        }
         fun refresh() = show(hasInternet(cm.getNetworkCapabilities(cm.activeNetwork)))
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) = refresh()
