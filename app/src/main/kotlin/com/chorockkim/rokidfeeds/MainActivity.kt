@@ -314,38 +314,61 @@ class MainActivity : ComponentActivity() {
         return false
     }
 
+    /** 업데이트 확인·받기 중이거나 이미 설치를 넘겼으면 다시 하지 않는다. */
+    private var updateRunning = false
+    private var updateChecked = false
+
+    /**
+     * 켤 때, 그리고 인터넷이 다시 연결될 때마다(아직 확인에 성공하지 못했으면) 확인한다. 안경은 켤 때 Wi-Fi가 꺼져 있거나
+     * 핫스팟에 아직 안 붙은 경우가 많아, 켤 때 한 번만 확인하면 조용히 실패하고 다시 하지 않아 업데이트가 안 받아졌다.
+     */
     private fun checkForUpdate() {
+        if (updateRunning || updateChecked) return
         val updater = app.updater
+        updateRunning = true
         lifecycleScope.launch {
-            val release = (runCatching { updater.check() }.getOrNull() as? Updater.Check.Available)?.release
-            updateText = release?.let { "새 버전 v${it.versionName}" }
-            if (release == null) return@launch
-            if (!askInstallPermission()) {
-                updateText = "새 버전 v${release.versionName} · 설치 허용을 켜면 이어서 해요"
-                return@launch
+            try { runUpdate(updater) } finally { updateRunning = false }
+        }
+    }
+
+    private suspend fun runUpdate(updater: Updater) {
+        val checked = runCatching { updater.check() }
+        if (checked.isFailure) {
+            // 오프라인이면 조용히 기다렸다가 연결되면 다시. 온라인인데 실패하면 이유를 띠 위에 보여 준다.
+            if (online) updateText = "업데이트 확인 실패 · ${checked.exceptionOrNull()?.message ?: "다시 시도해요"}"
+            return
+        }
+        updateChecked = true
+        val release = (checked.getOrNull() as? Updater.Check.Available)?.release
+        updateText = release?.let { "새 버전 v${it.versionName}" }
+        if (release == null) return
+        if (!askInstallPermission()) {
+            updateText = "새 버전 v${release.versionName} · 설치 허용을 켜면 이어서 해요"
+            updateChecked = false // 허용하고 돌아오면(onStart) 다시
+            return
+        }
+        updateText = "업데이트 v${release.versionName} 받는 중"
+        val apk = runCatching {
+            updater.download(release) { percent ->
+                if (percent >= 0) updateText = "업데이트 v${release.versionName} 받는 중 $percent%"
             }
-            updateText = "업데이트 v${release.versionName} 받는 중"
-            val apk = runCatching {
-                updater.download(release) { percent ->
-                    if (percent >= 0) updateText = "업데이트 v${release.versionName} 받는 중 $percent%"
+        }.getOrElse {
+            updateText = "업데이트 실패 · ${it.message ?: "다시 켜면 다시 해요"}"
+            updateChecked = false // 연결이 다시 생기면 다시
+            return
+        }
+        InstallResultReceiver.listener = { result ->
+            runOnUiThread {
+                updateText = when (result) {
+                    is InstallResultReceiver.Result.Failed -> "업데이트 실패 · ${result.message}"
+                    InstallResultReceiver.Result.WaitingForUser -> "업데이트 v${release.versionName} · 설치 확인을 눌러 주세요"
+                    InstallResultReceiver.Result.Installed -> "업데이트 v${release.versionName} 설치 완료 · 다시 켜는 중"
                 }
-            }.getOrElse {
-                updateText = "업데이트 실패 · ${it.message ?: "다시 켜면 다시 해요"}"
-                return@launch
             }
-            InstallResultReceiver.listener = { result ->
-                runOnUiThread {
-                    updateText = when (result) {
-                        is InstallResultReceiver.Result.Failed -> "업데이트 실패 · ${result.message}"
-                        InstallResultReceiver.Result.WaitingForUser -> "업데이트 v${release.versionName} · 설치 확인을 눌러 주세요"
-                        InstallResultReceiver.Result.Installed -> "업데이트 v${release.versionName} 설치 완료 · 다시 켜는 중"
-                    }
-                }
-            }
-            updateText = "업데이트 v${release.versionName} 설치 중 · 곧 다시 켜져요"
-            runCatching { updater.install(apk) }.onFailure {
-                updateText = "업데이트 실패 · ${it.message ?: it.javaClass.simpleName}"
-            }
+        }
+        updateText = "업데이트 v${release.versionName} 설치 중 · 곧 다시 켜져요"
+        runCatching { updater.install(apk) }.onFailure {
+            updateText = "업데이트 실패 · ${it.message ?: it.javaClass.simpleName}"
         }
     }
 
@@ -360,7 +383,10 @@ class MainActivity : ComponentActivity() {
         fun hasInternet(caps: NetworkCapabilities?) = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
         fun show(isOnline: Boolean) = runOnUiThread {
             // 끊겼다 다시 연결되면 Threads가 멈춰 있지 않게 다시 받는다(어느 화면에 있든).
-            if (isOnline && !online) threadsSession?.onReconnected()
+            if (isOnline && !online) {
+                threadsSession?.onReconnected()
+                checkForUpdate()
+            }
             online = isOnline
         }
         fun refresh() = show(hasInternet(cm.getNetworkCapabilities(cm.activeNetwork)))
