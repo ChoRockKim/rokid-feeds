@@ -14,7 +14,8 @@ import kotlinx.coroutines.withContext
  * Threads 화면 상태와 데이터 받기. TanStack Query처럼:
  * - **캐시 + stale-while-revalidate**: 목록·글 상세를 기기에 저장해 두고([ThreadsCache]) 켜자마자 저장본을 보여 준 뒤 뒤에서
  *   새로 받아 바꾼다. 글 상세는 [DETAIL_FRESH_MS] 안에 받은 것이면 다시 받지 않는다.
- * - **미리 받기**: 글 상세에 들어가면 댓글만 뒤에서 미리 더 받는다(ThreadsApp). 목록에서는 미리 받지 않는다(피드가 버벅임).
+ * - **미리 받지 않는다**: 글을 열어도 받지 않고, 댓글 화면으로 내려가야 받는다([loadComments], 사용자 요청).
+ *   목록에서도 미리 받지 않는다(피드가 버벅임).
  * - **무한 스크롤**: 목록·댓글 끝 근처에서만 다음 묶음을 받는다([loadMore], [loadMoreReplies]).
  * 글 페이지는 이미 떠 있는 threads.com 안에서 옮겨 간다([ThreadsWeb.openPost], 전체 다시 열기보다 빠름). 데이터가
  * [SPA_FALLBACK_MS] 안에 안 오면 전체를 다시 연다.
@@ -224,17 +225,37 @@ class ThreadsSession(
         emptyReplies = 0
         repliesEnd = false
         repliesTimeout?.cancel()
+        commentsWanted = false
         val code = item.head.code
-        val memory = details[code]
-        detail = memory?.detail
-        detailLoading = memory == null
+        detail = details[code]?.detail
+        detailLoading = false
+        // 글을 여는 것만으로는 받지 않는다(사용자 요청 2026-11-13): 본문은 목록에서 온 글로 그리고, 저장본이 있으면 그것을 쓴다.
+        // 댓글은 댓글 화면으로 내려갔을 때 [loadComments]로 받는다.
         scope.launch {
             val c = cached(code)
             if (openItem != item) return@launch
-            if (c != null) { detail = c.detail; detailLoading = false }
-            // 신선하면 그대로, 아니면 저장본을 보여 주면서 뒤에서 새로 받는다(이미 이 글을 받는 중이면 그대로 둔다).
+            if (c != null) detail = c.detail
+        }
+    }
+
+    /** 이 글에서 댓글 화면에 들어간 적이 있는지. 그런 글만 다시 연결됐을 때 다시 받는다. */
+    private var commentsWanted = false
+
+    /**
+     * 댓글 화면에 들어왔을 때: 신선한 저장본이 있으면 그대로, 아니면 저장본을 보여 주면서 글 페이지를 받는다
+     * (이미 이 글을 받는 중이면 그대로 둔다).
+     */
+    fun loadComments() {
+        val item = openItem ?: return
+        commentsWanted = true
+        val code = item.head.code
+        scope.launch {
+            val c = cached(code)
+            if (openItem != item) return@launch
+            if (c != null && detail == null) detail = c.detail
             if (isFresh(c)) return@launch
             if (target?.head?.code == code && targetLoading) return@launch
+            if (detailError != null || retryJob?.isActive == true) return@launch // 실패 뒤에는 저절로 다시 하거나 탭으로
             load(item)
         }
     }
@@ -282,7 +303,7 @@ class ThreadsSession(
         repliesTimeout?.cancel()
         feedStale = items.isNotEmpty()
         refresh(keepItems = true)
-        openItem?.let { item ->
+        openItem?.takeIf { commentsWanted }?.let { item ->
             fallback?.cancel()
             if (detail == null) detailLoading = true
             load(item, reload = true)

@@ -20,9 +20,6 @@ import com.chorockkim.rokidfeeds.threads.ThreadsSession
 import com.chorockkim.rokidfeeds.threads.buildPostPages
 import kotlinx.coroutines.flow.Flow
 
-/** 글 본문이 뜨고 이만큼 뒤 댓글을 미리 받는다(본문 보는 동안 버벅이지 않게 조금 늦춘다). */
-private const val REPLY_PREFETCH_DELAY_MS = 1_500L
-
 /** 열어 둔 글 하나와 그 안의 위치. 댓글을 열면 위에 쌓이고 뒤로 하면 빠진다. */
 private data class Opened(val item: ThreadItem, val state: DetailState = DetailState())
 
@@ -64,19 +61,14 @@ fun ThreadsApp(session: ThreadsSession, keys: Flow<NavKey>, onBack: () -> Unit, 
     val expected = top?.item?.head?.replyCount ?: 0
     val navComments = if (comments.isEmpty() && expected > 0) 1 else comments.size
 
-    // 미리 받기는 글 상세에서 댓글만(목록에서 미리 받으니 피드를 넘길 때도 버벅였다, 사용자 요청): 글을 열어 본문이 뜨면
-    // 댓글이 전체보다 적게 왔을 때 뒤에서 다음 댓글을 한 번 받아 둔다.
-    LaunchedEffect(top?.item, detail != null) {
-        val opened = top ?: return@LaunchedEffect
-        if (detail == null || opened.item.head.replyCount <= detail.replies.size) return@LaunchedEffect
-        kotlinx.coroutines.delay(REPLY_PREFETCH_DELAY_MS)
-        session.loadMoreReplies()
-    }
-    // 댓글 목록 끝 두 줄 안으로 오면, 전체 댓글 수보다 적게 받았을 때 글 페이지를 내려 더 받는다.
+    // 댓글은 글을 여는 것만으로는 받지 않고, 댓글 화면으로 내려갔을 때 받는다(사용자 요청 2026-11-13).
     val shownState = top?.let { ThreadDetailNav.normalize(it.state, photosPerPage, navComments) }
+    val inComments = shownState?.mode == Mode.Comments
+    LaunchedEffect(top?.item, inComments) { if (inComments) session.loadComments() }
+    // 댓글 목록 끝 두 줄 안으로 오면, 전체 댓글 수보다 적게 받았을 때 글 페이지를 내려 더 받는다.
     LaunchedEffect(shownState?.mode, shownState?.comment, comments.size) {
         val s = shownState ?: return@LaunchedEffect
-        if (s.mode == Mode.Comments && s.comment >= comments.size - 2 && (top?.item?.head?.replyCount ?: 0) > comments.size) {
+        if (detail != null && s.mode == Mode.Comments && s.comment >= comments.size - 2 && (top?.item?.head?.replyCount ?: 0) > comments.size) {
             session.loadMoreReplies()
         }
     }
