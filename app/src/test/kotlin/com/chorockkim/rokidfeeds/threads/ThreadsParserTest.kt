@@ -87,8 +87,10 @@ class ThreadsParserTest {
         val carousel = ""","carousel_media":[
             {"original_width":1080,"original_height":1920,"image_versions2":{"candidates":[{"url":"https://cdn.example/tall.webp","width":720,"height":1280}]}},
             {"original_width":1080,"original_height":1080,"image_versions2":{"candidates":[{"url":"https://cdn.example/sq.webp","width":720,"height":720}]}},
+            {"original_width":1080,"original_height":1100,"image_versions2":{"candidates":[{"url":"https://cdn.example/bit.webp","width":720,"height":733}]}},
+            {"original_width":1920,"original_height":1080,"image_versions2":{"candidates":[{"url":"https://cdn.example/wide.webp","width":720,"height":405}]}},
             {"image_versions2":{"candidates":[{"url":"https://cdn.example/nosize.webp","width":600,"height":900}]}}]"""
         val p = ThreadsParser.items("""{"thread_items":[{"post":${post("1", "A", "a", "t", carousel)}}]}""").single().head
-        assertEquals(listOf(true, false, true), p.tall)
+        assertEquals(listOf(true, false, true, false, true), p.tall)
     }
 }

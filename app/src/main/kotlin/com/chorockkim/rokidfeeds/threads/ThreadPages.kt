@@ -14,7 +14,7 @@ data class PostPage(
     val header: Boolean,
     val photos: List<String> = emptyList(),
     val thumbs: List<String> = emptyList(),
-    /** [photos]마다 길쭉한지(사진 화면에서 탭하면 반씩 확대). */
+    /** [photos]마다 세로가 가로보다 긴지(사진 화면에서 탭하면 3조각 확대). */
     val tall: List<Boolean> = emptyList(),
     val actions: Boolean = false,
     /** 작성자가 이어 쓴 글이면 몇 번째(1부터, 본문은 0)와 전체 수. 화면에 "이어서 2/3"으로 보여 다른 글처럼 보이지 않게 한다. */

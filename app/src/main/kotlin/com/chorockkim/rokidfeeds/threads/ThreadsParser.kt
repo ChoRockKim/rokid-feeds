@@ -120,7 +120,7 @@ object ThreadsParser {
         )
     }
 
-    /** 사진이 세로로 길쭉한지: 원본 크기(original_width/height), 없으면 가장 큰 후보의 크기로. */
+    /** 사진의 세로가 가로보다 조금이라도 긴지: 원본 크기(original_width/height), 없으면 가장 큰 후보의 크기로. */
     private fun isTall(o: JSONObject): Boolean {
         var w = o.optInt("original_width")
         var h = o.optInt("original_height")
@@ -131,7 +131,7 @@ object ThreadsParser {
             w = c?.optInt("width") ?: 0
             h = c?.optInt("height") ?: 0
         }
-        return w > 0 && h >= w * TALL_RATIO
+        return w > 0 && h > w
     }
 
     private fun bestImage(o: JSONObject, target: Int): String? {
