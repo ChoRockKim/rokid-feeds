@@ -59,6 +59,11 @@ class ThreadsWeb(
         settings.blockNetworkImage = true
         if (android.os.Build.VERSION.SDK_INT >= 26) defaultFocusHighlightEnabled = false
         settings.userAgentString = settings.userAgentString.replace("; wv", "")
+        // 안드로이드 WebView는 요청마다 X-Requested-With(앱 패키지)를 붙인다. 인스타는 이 머리글 + 모바일 UA면 로그인 칸이
+        // 없는 빈 페이지를 준다(2026-11-15 Chromium으로 재현, 사용자 "로그인 폼을 찾지 못했습니다"). 보내지 않는다.
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST)) {
+            runCatching { WebSettingsCompat.setRequestedWithHeaderOriginAllowList(settings, emptySet()) }
+        }
         cookies.setAcceptCookie(true)
         if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
             WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, true)
@@ -144,9 +149,24 @@ class ThreadsWeb(
     }
 
     /** 로그인 폼에 넣고 누른다. 폼이 없으면 false. */
-    suspend fun submitLogin(username: String, password: String): Boolean =
-        eval("window.__rokidLogin ? window.__rokidLogin(${JSONObject.quote(username)}, ${JSONObject.quote(password)}) : ''")
-            .let { raw -> runCatching { JSONObject(unquote(raw)).optBoolean("ok") }.getOrDefault(false) }
+    /** 로그인 폼에 넣은 결과. 못 넣었으면 [page]에 그 페이지 모양(입력칸·버튼 이름, 내용 없음)을 담아 화면에 보여 준다. */
+    data class SubmitResult(val ok: Boolean, val page: String = "")
+
+    /**
+     * 로그인 폼에 넣고 누른다. 폼이 바로 없으면(아직 그리는 중, "계속하기"·"계정 전환" 화면) 페이지 스크립트가 로그인 칸을 여는
+     * 버튼을 눌러 보고 몇 번 다시 한다. 중간에 한 번은 로그인 페이지를 새로 연다.
+     */
+    suspend fun submitLogin(username: String, password: String): SubmitResult {
+        var page = ""
+        repeat(LOGIN_TRIES) { attempt ->
+            val raw = eval("window.__rokidLogin ? window.__rokidLogin(${JSONObject.quote(username)}, ${JSONObject.quote(password)}) : JSON.stringify({ok:false,page:'스크립트 없음'})")
+            val o = runCatching { JSONObject(unquote(raw)) }.getOrNull()
+            if (o?.optBoolean("ok") == true) return SubmitResult(true)
+            page = o?.optString("page").orEmpty().ifEmpty { "응답 없음" }
+            if (attempt == LOGIN_TRIES / 2) { openLogin(); kotlinx.coroutines.delay(LOGIN_RELOAD_WAIT_MS) } else kotlinx.coroutines.delay(LOGIN_RETRY_MS)
+        }
+        return SubmitResult(false, page)
+    }
 
     /** 인증 코드 칸에 넣고 누른다. */
     suspend fun submitCode(text: String): Boolean =
@@ -232,6 +252,9 @@ class ThreadsWeb(
         }
 
         const val HOME = "https://www.threads.com/"
+        private const val LOGIN_TRIES = 5
+        private const val LOGIN_RETRY_MS = 1_500L
+        private const val LOGIN_RELOAD_WAIT_MS = 5_000L
         // 인스타그램은 로그인 단계에서 거친다. 거기서는 입력칸 이동 도우미만 쓰고 글 JSON은 받지 않는다(Bridge가 threads 주소만 받음).
         private val ALLOWED_ORIGINS = setOf("https://www.threads.com", "https://threads.com", "https://www.threads.net", "https://www.instagram.com")
 

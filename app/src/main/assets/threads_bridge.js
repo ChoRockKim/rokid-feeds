@@ -135,13 +135,23 @@
     if (form && form.requestSubmit) { form.requestSubmit(); return true; }
     return false;
   }
+  /** 페이지 모양(내용 없이): 주소 경로, 입력칸 종류, 버튼 이름 몇 개. 로그인 실패 이유를 화면에 보여 주려고. */
+  function pageShape(list) {
+    var names = Array.prototype.filter.call(document.querySelectorAll('button, [role=button], a'), visible)
+      .map(function (x) { return (x.innerText || '').trim().slice(0, 16); }).filter(Boolean).slice(0, 4);
+    return location.pathname + ' · 칸 ' + list.map(function (x) { return x.type; }).join('/') + (names.length ? ' · 버튼 ' + names.join(', ') : '');
+  }
   function label(el) { return (el.getAttribute('aria-label') || el.placeholder || el.name || '').slice(0, 60); }
   window.__rokidLogin = function (user, pass) {
     var list = inputs();
     var p = list.find(function (x) { return x.type === 'password'; });
     var u = list.find(function (x) { return x.autocomplete === 'username' || x.name === 'username'; }) ||
       list.find(function (x) { return x !== p && (x.type === 'text' || x.type === 'email' || x.type === 'tel'); });
-    if (!u || !p) return JSON.stringify({ ok: false, why: 'no-form' });
+    if (!u || !p) {
+      // 로그인 칸이 아직 없다: "로그인"·"계정 전환" 같은 버튼이 있으면 눌러 칸을 연다(앱이 잠시 뒤 다시 부른다).
+      press(null, /^(Log in|Log In|로그인|Switch accounts|계정 전환|Log into another account|다른 계정으로 로그인|Use another profile|다른 프로필 사용)$/);
+      return JSON.stringify({ ok: false, why: 'no-form', page: pageShape(list) });
+    }
     setValue(u, user);
     setValue(p, pass);
     setTimeout(function () { press(p.form, /^(로그인|Log in|Log In)$/); }, 300);

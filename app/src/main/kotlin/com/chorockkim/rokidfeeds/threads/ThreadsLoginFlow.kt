@@ -80,11 +80,13 @@ class ThreadsLoginFlow(
                     is LoginRelay.Message.Credentials -> {
                         username = m.username // 설정에 보여 줄 아이디만 기억한다(비밀번호는 넘기고 버린다)
                         ui = Ui.LoggingIn(url, session.code)
-                        val ok = web.submitLogin(m.username, m.password)
-                        if (!ok) {
-                            report(session, "error", "로그인 폼을 찾지 못했습니다")
+                        val result = web.submitLogin(m.username, m.password)
+                        if (!result.ok) {
+                            // 무엇이 떠 있었는지(입력칸·버튼 이름)를 같이 보여 줘서 원인을 알 수 있게 한다.
+                            val why = "로그인 폼을 찾지 못했습니다 (${result.page})"
+                            report(session, "error", why)
                             web.openLogin()
-                            ui = Ui.Waiting(url, session.code, "로그인 폼을 찾지 못했습니다")
+                            ui = Ui.Waiting(url, session.code, why)
                         } else watch(session, url)
                     }
                     is LoginRelay.Message.Code -> {

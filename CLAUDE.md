@@ -41,7 +41,7 @@ Rokid 안경 읽기 앱. 메인 메뉴에서 **뉴스**(연합뉴스·동아일�
 - 클라우드에서 확인한 것은 로그인하지 않은 Chromium뿐이다. 로그인 상태·안드로이드 WebView는 실기 미확인.
 
 ## Instagram (스토리만)
-- Threads와 같은 숨은 WebView(`ThreadsWeb`에 `Site.Instagram`)·브리지·폰 링크 로그인·계정 전환을 쓴다. 인스타 로그인은 instagram.com 로그인 폼(`email`·`pass` 칸, 2026-11-15 Chromium 확인)에 넣는다.
+- Threads와 같은 숨은 WebView(`ThreadsWeb`에 `Site.Instagram`)·브리지·폰 링크 로그인·계정 전환을 쓴다. 인스타 로그인은 instagram.com 로그인 폼(`email`·`pass` 칸, 2026-11-15 Chromium 확인)에 넣는다. 인스타는 안드로이드 WebView가 붙이는 `X-Requested-With` 머리글 + 모바일 UA면 로그인 칸 없는 빈 페이지를 준다(Chromium 재현) → `setRequestedWithHeaderOriginAllowList(빈 집합)`으로 보내지 않는다. 폼이 없으면 "로그인"·"계정 전환" 버튼을 눌러 보고 몇 번 다시 하며, 끝내 없으면 페이지 모양(경로·입력칸 종류·버튼 이름)을 오류에 붙인다.
 - `insta/InstaStories`(순수): 목록 `tray[]`(사람·`latest_reel_media`·`seen`), 한 사람 `reels_media[].items[]`(`media_type`·`image_versions2`·`video_versions`). 키 이름보다 모양(사람 객체 + 시각/items)으로 찾는다. 모양은 공개 자료로 짐작했고 로그인 상태 응답은 **실기 미확인**.
 - `insta/InstaSession`: 목록 = instagram.com 홈, 사람을 고르면 `/stories/아이디/`를 열고 장을 받으면 바로 `about:blank`로 비운다(페이지가 스스로 넘기며 받고 "봤음"을 남길 수 있어서). 미리 받지 않는다.
 - 이동은 `nav/StoryNav`(순수): 목록 → 탭 보기 → 다음/이전 장(사람 끝이면 다음 사람, 마지막이면 목록), 탭 멈춤, 뒤로 목록, 목록에서 뒤로 종료. 사진 6초, 동영상은 끝나면 다음(`ui/InstaApp`, 플레이어는 `VideoPlayer` 공용).
