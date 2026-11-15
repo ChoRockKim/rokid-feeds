@@ -13,7 +13,7 @@
         if (d.redirect_uri) { try { redirect = new URL(d.redirect_uri, location.href).pathname; } catch (e) { redirect = '?'; } }
         RokidThreads.onLogin(JSON.stringify({
           auth: !!d.ig_authenticated, code: d.error_code == null ? null : String(d.error_code),
-          msg: d.error_message ? String(d.error_message).slice(0, 80) : null,
+          msg: d.error_message ? (typeof d.error_message === 'object' ? JSON.stringify(d.error_message) : String(d.error_message)).slice(0, 160) : null,
           captcha: !!(d.recaptcha_needed || d.is_ig_login_recaptcha), twofa: !!d.two_factor_result,
           redirect: redirect, selector: !!d.should_show_profile_selector
         }));

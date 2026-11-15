@@ -20,7 +20,7 @@ data class LoginResult(
     /** 실패 이유(한국어). 성공이거나 인증 코드 단계(앱이 따로 처리)면 null. */
     fun reason(): String? = when {
         authenticated || twoFactor -> null
-        captcha -> "인스타가 로봇 확인(캡차)을 요구합니다 · 잠시 뒤 다시 하거나 폰 인스타 앱에서 한 번 로그인해 주세요"
+        captcha || errorCode in CAPTCHA_CODES -> "인스타가 로봇 확인(캡차)을 요구해 로그인을 막았습니다 · 정보는 맞을 수 있습니다"
         redirect != null && ("challenge" in redirect || "checkpoint" in redirect || "auth_platform" in redirect) ->
             "인스타가 본인 확인을 요구합니다 · 인스타 앱·메일에서 '본인 맞음'을 누른 뒤 다시 ($redirect)"
         profileSelector -> "인스타가 계정 고르기 화면을 띄웠습니다 · 다시 보내 주세요"
@@ -31,6 +31,9 @@ data class LoginResult(
     }
 
     companion object {
+        /** 캡차를 통과해야 하는 거절(1348009, 공개 프로젝트 mautrix/meta가 이렇게 다룸, 공식 문서 없음). 사용자 안경에서 받음(실기 2026-11-15). */
+        val CAPTCHA_CODES = setOf("1348009")
+
         fun parse(json: String?): LoginResult? = runCatching {
             val o = JSONObject(json ?: return null)
             fun str(k: String) = o.optString(k).takeIf { it.isNotEmpty() && it != "null" }
