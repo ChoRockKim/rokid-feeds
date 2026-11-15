@@ -41,19 +41,22 @@ fun MenuScreen(selected: Int, threadsLoggedIn: Boolean) {
 }
 
 /**
- * 설정: Threads 계정(로그인 / 로그아웃). 로그아웃은 실수로 누르지 않게 한 번 더 탭해야 한다([confirmLogout]).
+ * 설정: Threads 계정 칸들. 로그인 안 한 칸 = 탭하면 폰으로 로그인, 다른 계정 = 탭하면 전환, 지금 계정 = 탭 두 번 로그아웃
+ * (실수로 누르지 않게 한 번 더 탭해야 한다, [confirmLogout]).
  */
 @Composable
-fun SettingsScreen(selected: Int, threadsLoggedIn: Boolean, confirmLogout: Boolean, version: String) {
+fun SettingsScreen(selected: Int, accounts: List<com.chorockkim.rokidfeeds.nav.AccountRow>, confirmLogout: Boolean, version: String) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        BasicText("설정", style = Glass.Heading)
-        com.chorockkim.rokidfeeds.nav.SettingsItem.entries.forEachIndexed { index, item ->
-            val (title, sub) = when (item) {
-                com.chorockkim.rokidfeeds.nav.SettingsItem.ThreadsAccount -> when {
-                    !threadsLoggedIn -> "Threads 로그인" to "폰에서 링크를 열어 로그인합니다"
-                    confirmLogout -> "한 번 더 탭하면 로그아웃" to "쓸기·뒤로를 누르면 취소합니다"
-                    else -> "Threads 로그아웃" to "로그인돼 있습니다 · 탭하면 확인을 묻습니다"
-                }
+        BasicText("설정 · Threads 계정", style = Glass.Heading)
+        accounts.forEachIndexed { index, row ->
+            val who = row.name?.let { " · @$it" } ?: if (row.loggedIn) " · 로그인됨" else ""
+            val title = "계정 ${index + 1}$who" + if (row.active) "  (사용 중)" else ""
+            val sub = when {
+                !row.available -> "이 안경의 WebView는 계정 여러 개를 지원하지 않습니다"
+                !row.loggedIn -> "탭: 폰에서 링크를 열어 로그인"
+                !row.active -> "탭: 이 계정으로 전환"
+                confirmLogout && index == selected -> "한 번 더 탭하면 로그아웃 · 쓸기·뒤로는 취소"
+                else -> "탭 두 번: 로그아웃"
             }
             val on = index == selected
             Column(

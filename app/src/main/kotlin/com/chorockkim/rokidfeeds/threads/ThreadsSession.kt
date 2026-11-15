@@ -51,7 +51,7 @@ class ThreadsSession(
             loadingMoreReplies -> "댓글 더 불러오는 중…"
             else -> null
         }
-    var loggedIn by mutableStateOf(ThreadsWeb.isLoggedIn())
+    var loggedIn by mutableStateOf(web.isLoggedIn())
         private set
     /** 더 불러오는 중(한 번에 하나만). */
     var loadingMore by mutableStateOf(false)
@@ -130,7 +130,7 @@ class ThreadsSession(
     }
 
     fun refresh(keepItems: Boolean = false) {
-        loggedIn = ThreadsWeb.isLoggedIn()
+        loggedIn = web.isLoggedIn()
         if (!keepItems) { items = emptyList(); feedStale = false }
         feedEnd = false
         emptyMore = 0
@@ -317,7 +317,7 @@ class ThreadsSession(
 
     /** 로그인 화면에서 돌아왔을 때: 로그인 상태가 바뀌었으면 목록을 새로 받는다. */
     fun afterLogin() {
-        val now = ThreadsWeb.isLoggedIn()
+        val now = web.isLoggedIn()
         if (now != loggedIn || started) {
             loggedIn = now
             started = true
@@ -326,7 +326,7 @@ class ThreadsSession(
         }
     }
 
-    fun logout() = ThreadsWeb.logout {
+    fun logout() = web.logout {
         scope.launch {
             loggedIn = false
             details.clear()

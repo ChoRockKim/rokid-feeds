@@ -114,6 +114,8 @@ object ThreadsParser {
         val shown = media.filter { bestImage(it, IMAGE_TARGET_WIDTH) != null }
         val tall = shown.map(::isTall)
         val videos = shown.map(::isVideo)
+        // 사진 한 장짜리 동영상 글은 동영상 주소가 글 자체에 있다.
+        val videoUrls = shown.map { m -> videoUrl(m) ?: (if (shown.size == 1) videoUrl(o) else null) ?: "" }
         return ThreadPost(
             pk = o.optString("pk"),
             code = o.optString("code"),
@@ -127,9 +129,14 @@ object ThreadsParser {
             tall = tall,
             hasVideo = isVideo(o) || videos.any { it },
             avatar = o.getJSONObject("user").optString("profile_pic_url").takeIf { it.startsWith("https://") },
-            videos = videos,
+            videos = videos.mapIndexed { i, v -> v || videoUrls[i].isNotEmpty() },
+            videoUrls = videoUrls,
             quoted = share?.optJSONObject("quoted_post")?.takeIf { depth < 2 }?.let { post(it, depth + 1) }?.copy(quoted = null),
         )
+    }
+
+    private fun videoUrl(o: JSONObject): String? = o.optJSONArray("video_versions")?.let { a ->
+        (0 until a.length()).mapNotNull { a.optJSONObject(it)?.optString("url") }.firstOrNull { it.startsWith("https://") }
     }
 
     private fun isVideo(o: JSONObject): Boolean =

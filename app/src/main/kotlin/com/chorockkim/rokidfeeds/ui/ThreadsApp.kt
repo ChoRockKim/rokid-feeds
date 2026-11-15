@@ -73,11 +73,17 @@ fun ThreadsApp(session: ThreadsSession, keys: Flow<NavKey>, onBack: () -> Unit, 
         }
     }
 
+    var seek by remember { mutableStateOf(SeekRequest()) }
     val onKey by rememberUpdatedState { key: NavKey ->
         val opened = stack.lastOrNull()
         when {
             opened != null -> {
-                val r = ThreadDetailNav.reduce(opened.state, key, photosPerPage, navComments) { p, i -> pages.getOrNull(p)?.tall?.getOrNull(i) == true }
+                val r = ThreadDetailNav.reduce(
+                    opened.state, key, photosPerPage, navComments,
+                    isTall = { p, i -> pages.getOrNull(p)?.tall?.getOrNull(i) == true },
+                    isVideo = { p, i -> pages.getOrNull(p)?.videoUrls?.getOrNull(i).orEmpty().isNotEmpty() },
+                )
+                if (r.seek != 0) seek = SeekRequest(r.seek, seek.id + 1)
                 when {
                     r.back -> stack.removeAt(stack.lastIndex)
                     r.openComment != null -> {
@@ -113,8 +119,9 @@ fun ThreadsApp(session: ThreadsSession, keys: Flow<NavKey>, onBack: () -> Unit, 
                 comments = if (comments.isNotEmpty()) comments.size else top.item.head.replyCount,
                 depth = stack.size,
             )
-            Mode.Photos -> ThreadPhotoScreen(page.post, page.photos[s.photo], s.photo, page.photos.size, tall = page.tall.getOrElse(s.photo) { false }, video = page.videos.getOrElse(s.photo) { false })
+            Mode.Photos -> ThreadPhotoScreen(page.post, page.photos[s.photo], s.photo, page.photos.size, tall = page.tall.getOrElse(s.photo) { false }, video = page.videos.getOrElse(s.photo) { false }, playable = page.videoUrls.getOrElse(s.photo) { "" }.isNotEmpty())
             Mode.Zoom -> ThreadPhotoZoomScreen(page.photos[s.photo], s.part)
+            Mode.Video -> ThreadVideoScreen(page.post.author, page.videoUrls[s.photo], s.paused, seek, s.photo, page.photos.size)
             Mode.Comments -> ThreadCommentsScreen(
                 comments = comments,
                 selected = s.comment,

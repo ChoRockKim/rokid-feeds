@@ -22,6 +22,8 @@ data class PostPage(
     val parts: Int = 1,
     /** [photos]마다 동영상인지(미리보기만). */
     val videos: List<Boolean> = emptyList(),
+    /** [photos]마다 동영상 주소(아니면 ""). */
+    val videoUrls: List<String> = emptyList(),
     /** 앞 글이 인용한 다른 사람 글의 쪽(인용 표시를 붙여 그 글의 사진도 탭으로 본다). */
     val quote: Boolean = false,
 )
@@ -71,9 +73,10 @@ private fun pagesOf(post: ThreadPost, split: TextSplitter): List<PostPage> {
     val thumbs = post.thumbs.ifEmpty { post.images }.take(MAX_IMAGES_PER_POST)
     val tall = photos.indices.map { post.tall.getOrElse(it) { false } }
     val videos = photos.indices.map { post.videos.getOrElse(it) { false } }
+    val videoUrls = photos.indices.map { post.videoUrls.getOrElse(it) { "" } }
     val chunks = if (text.isBlank()) listOf("") else split(text, photos.isNotEmpty()).ifEmpty { listOf(text) }
     val pages = chunks.mapIndexed { i, body ->
-        PostPage(post, body, header = i == 0, photos = photos, thumbs = if (i == 0) thumbs else emptyList(), tall = tall, videos = videos)
+        PostPage(post, body, header = i == 0, photos = photos, thumbs = if (i == 0) thumbs else emptyList(), tall = tall, videos = videos, videoUrls = videoUrls)
     }.toMutableList()
     if (photos.isEmpty() && text.isBlank()) {
         pages[0] = pages[0].copy(body = if (post.hasVideo) "(동영상)" else "(내용 없음)")

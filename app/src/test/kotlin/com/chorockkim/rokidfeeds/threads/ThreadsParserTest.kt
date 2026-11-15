@@ -129,7 +129,9 @@ class ThreadsParserTest {
         val p = ThreadsParser.items("""{"thread_items":[{"post":${post("1", "A", "a", "t", carousel)}}]}""").single().head
         assertEquals(listOf(false, true), p.videos)
         assertTrue(p.hasVideo)
+        assertEquals(listOf("", "https://cdn.example/v.mp4"), p.videoUrls)
         val single = ThreadsParser.items("""{"thread_items":[{"post":${post("2", "B", "b", "t", ""","media_type":2,"video_versions":[{"url":"x"}]""" + image)}}]}""").single().head
         assertEquals(listOf(true), single.videos)
+        assertEquals(listOf(""), single.videoUrls) // "x"는 https가 아니라 버린다
     }
 }

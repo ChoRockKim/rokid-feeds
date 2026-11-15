@@ -20,7 +20,8 @@ class ThreadsLoginFlow(
     private val web: ThreadsWeb,
     private val relay: LoginRelay,
     private val scope: CoroutineScope,
-    private val onLoggedIn: () -> Unit,
+    /** 로그인 완료(폰에서 넣은 아이디, 표시용). */
+    private val onLoggedIn: (username: String?) -> Unit,
 ) {
     sealed interface Ui {
         /** 로그인 서버에 코드를 받는 중. [waking]이면 늦어서 서버가 잠에서 깨는 중으로 본다. */
@@ -37,6 +38,7 @@ class ThreadsLoginFlow(
         private set
 
     private var job: Job? = null
+    private var username: String? = null
 
     fun start() {
         job?.cancel()
@@ -76,6 +78,7 @@ class ThreadsLoginFlow(
             for (m in messages) {
                 when (m) {
                     is LoginRelay.Message.Credentials -> {
+                        username = m.username // 설정에 보여 줄 아이디만 기억한다(비밀번호는 넘기고 버린다)
                         ui = Ui.LoggingIn(url, session.code)
                         val ok = web.submitLogin(m.username, m.password)
                         if (!ok) {
@@ -100,10 +103,10 @@ class ThreadsLoginFlow(
     private suspend fun watch(session: LoginRelay.Session, url: String) {
         repeat(WATCH_STEPS) {
             delay(WATCH_MS)
-            if (ThreadsWeb.isLoggedIn()) {
+            if (web.isLoggedIn()) {
                 report(session, "done")
                 ui = Ui.Done
-                onLoggedIn()
+                onLoggedIn(username)
                 return
             }
             val state = web.loginState() ?: return@repeat

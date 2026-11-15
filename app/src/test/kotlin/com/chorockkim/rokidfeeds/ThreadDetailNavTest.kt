@@ -81,4 +81,20 @@ class ThreadDetailNavTest {
         assertEquals(h, w[2].first + w[2].second)
         assertTrue(w[0].first + w[0].second > w[1].first && w[1].first + w[1].second > w[2].first)
     }
+
+    @Test
+    fun `동영상은 탭하면 재생, 탭 일시정지·계속, 쓸기 10초 앞뒤, 뒤로 사진`() {
+        val video: (Int, Int) -> Boolean = { page, photo -> page == 1 && photo == 2 }
+        fun r(s: DetailState, k: NavKey) = ThreadDetailNav.reduce(s, k, photos, comments, isVideo = video)
+        val play = r(DetailState(Mode.Photos, page = 1, photo = 2), NavKey.Select).state
+        assertEquals(DetailState(Mode.Video, page = 1, photo = 2), play)
+        assertTrue(r(play, NavKey.Select).state.paused)
+        assertEquals(false, r(r(play, NavKey.Select).state, NavKey.Select).state.paused)
+        assertEquals(com.chorockkim.rokidfeeds.nav.VIDEO_SEEK_S, r(play, NavKey.Next).seek)
+        assertEquals(-com.chorockkim.rokidfeeds.nav.VIDEO_SEEK_S, r(play, NavKey.Previous).seek)
+        assertEquals(play, r(play, NavKey.Next).state)
+        assertEquals(DetailState(Mode.Photos, page = 1, photo = 2), r(r(play, NavKey.Select).state, NavKey.Back).state)
+        // 동영상이 아닌 사진의 탭은 그대로 다음 사진
+        assertEquals(DetailState(Mode.Photos, page = 1, photo = 1), r(DetailState(Mode.Photos, page = 1, photo = 0), NavKey.Select).state)
+    }
 }

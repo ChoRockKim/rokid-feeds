@@ -20,8 +20,10 @@ data class ThreadPost(
     val tall: List<Boolean> = emptyList(),
     /** 프로필 사진 주소. 지금은 받지 않고 머리글자로 그린다(속도). */
     val avatar: String? = null,
-    /** [images]마다 동영상인지(미리보기 사진만 보여 준다, 재생은 안 함). */
+    /** [images]마다 동영상인지(사진은 미리보기, 탭하면 [videoUrls]로 재생). */
     val videos: List<Boolean> = emptyList(),
+    /** [images]마다 동영상 주소(동영상이 아니면 ""). `video_versions` 첫 주소(2026-11-15 확인: 세 개가 같은 720×900 MP4). */
+    val videoUrls: List<String> = emptyList(),
     /** 이 글이 인용한 다른 사람 글(`share_info.quoted_post`). */
     val quoted: ThreadPost? = null,
     /** 리포스트(퍼온 글)로 목록에 왔으면 퍼온 사람. 이 글 자체는 원글이다(`share_info.reposted_post`). */

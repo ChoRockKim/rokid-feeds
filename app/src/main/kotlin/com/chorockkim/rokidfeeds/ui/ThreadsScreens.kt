@@ -211,8 +211,9 @@ fun ThreadPhotoScreen(
     total: Int,
     image: ImageSource = { rememberThreadImage(it) },
     tall: Boolean = false,
-    /** 동영상의 미리보기 사진(재생은 안 함). */
+    /** 동영상의 미리보기 사진. [playable]이면 탭하면 재생. */
     video: Boolean = false,
+    playable: Boolean = false,
 ) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
@@ -225,7 +226,13 @@ fun ThreadPhotoScreen(
             }
             if (video) PlayBadge(44.dp)
         }
-        Footer("@${post.author}" + (if (video) " · 동영상(미리보기)" else "") + " · ◀ ▶ 다른 사진" + (if (tall) " · 탭 확대" else "") + " · 뒤로 글", "${index + 1}/$total")
+        val tap = when {
+            video && playable -> " · 탭 재생"
+            video -> " · 동영상(주소 없음)"
+            tall -> " · 탭 확대"
+            else -> ""
+        }
+        Footer("@${post.author} · ◀ ▶ 다른 사진$tap · 뒤로 글", "${index + 1}/$total")
     }
 }
 

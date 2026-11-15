@@ -12,11 +12,23 @@ package com.chorockkim.rokidfeeds.nav
  * 사진 화면에서 길쭉한 사진이면 탭 → 위 조각 확대 → 쓸기 → 가운데 → 아래 → 뒤로 → 사진 → 뒤로 → 글.
  */
 /** [Mode.Zoom]: 길쭉한 사진을 3조각(살짝 겹침)으로 나눠 확대해 [DetailState.part] = 0 위, 1 가운데, 2 아래를 본다. */
-enum class Mode { Post, Photos, Zoom, Comments }
+/** [Mode.Video]: 사진 화면에서 동영상을 탭하면 재생. 탭 = 일시정지/계속, 쓸기 = [VIDEO_SEEK_S]초 앞뒤로, 뒤로 = 사진. */
+enum class Mode { Post, Photos, Zoom, Comments, Video }
 
-data class DetailState(val mode: Mode = Mode.Post, val page: Int = 0, val photo: Int = 0, val comment: Int = 0, val part: Int = 0)
+data class DetailState(
+    val mode: Mode = Mode.Post,
+    val page: Int = 0,
+    val photo: Int = 0,
+    val comment: Int = 0,
+    val part: Int = 0,
+    val paused: Boolean = false,
+)
 
-data class DetailOutcome(val state: DetailState, val openComment: Int? = null, val back: Boolean = false)
+/** [seek]은 동영상을 몇 초 옮길지(앞 +, 뒤 -). 상태가 아니라 한 번의 동작이라 따로 돌려준다. */
+data class DetailOutcome(val state: DetailState, val openComment: Int? = null, val back: Boolean = false, val seek: Int = 0)
+
+/** 동영상에서 한 번 쓸면 옮기는 초. */
+const val VIDEO_SEEK_S = 10
 
 /** 길쭉한 사진을 나눠 보는 조각 수. */
 const val ZOOM_PARTS = 3
@@ -31,6 +43,7 @@ object ThreadDetailNav {
         photosPerPage: List<Int>,
         comments: Int,
         isTall: (page: Int, photo: Int) -> Boolean = { _, _ -> false },
+        isVideo: (page: Int, photo: Int) -> Boolean = { _, _ -> false },
     ): DetailOutcome {
         val s = normalize(state, photosPerPage, comments)
         val lastPage = (photosPerPage.size - 1).coerceAtLeast(0)
@@ -56,7 +69,11 @@ object ThreadDetailNav {
                 val last = (photosPerPage.getOrElse(s.page) { 0 } - 1).coerceAtLeast(0)
                 when (key) {
                     NavKey.Select -> DetailOutcome(
-                        if (isTall(s.page, s.photo)) s.copy(mode = Mode.Zoom, part = 0) else s.copy(photo = (s.photo + 1).coerceAtMost(last)),
+                        when {
+                            isVideo(s.page, s.photo) -> s.copy(mode = Mode.Video, paused = false)
+                            isTall(s.page, s.photo) -> s.copy(mode = Mode.Zoom, part = 0)
+                            else -> s.copy(photo = (s.photo + 1).coerceAtMost(last))
+                        },
                     )
                     NavKey.Next -> DetailOutcome(s.copy(photo = (s.photo + 1).coerceAtMost(last)))
                     NavKey.Previous -> DetailOutcome(s.copy(photo = (s.photo - 1).coerceAtLeast(0)))
@@ -67,6 +84,12 @@ object ThreadDetailNav {
                 NavKey.Next, NavKey.Select -> DetailOutcome(s.copy(part = (s.part + 1).coerceAtMost(ZOOM_PARTS - 1)))
                 NavKey.Previous -> DetailOutcome(s.copy(part = (s.part - 1).coerceAtLeast(0)))
                 NavKey.Back -> DetailOutcome(s.copy(mode = Mode.Photos, part = 0))
+            }
+            Mode.Video -> when (key) {
+                NavKey.Select -> DetailOutcome(s.copy(paused = !s.paused))
+                NavKey.Next -> DetailOutcome(s, seek = VIDEO_SEEK_S)
+                NavKey.Previous -> DetailOutcome(s, seek = -VIDEO_SEEK_S)
+                NavKey.Back -> DetailOutcome(s.copy(mode = Mode.Photos, paused = false))
             }
             Mode.Comments -> when (key) {
                 NavKey.Next -> DetailOutcome(s.copy(comment = (s.comment + 1).coerceAtMost((comments - 1).coerceAtLeast(0))))
@@ -86,6 +109,7 @@ object ThreadDetailNav {
         return when (state.mode) {
             Mode.Post -> state.copy(page = page)
             Mode.Photos -> if (photos == 0) DetailState(Mode.Post, page) else state.copy(page = page, photo = state.photo.coerceIn(0, photos - 1))
+            Mode.Video -> if (photos == 0) DetailState(Mode.Post, page) else state.copy(page = page, photo = state.photo.coerceIn(0, photos - 1))
             Mode.Zoom -> if (photos == 0) DetailState(Mode.Post, page) else state.copy(page = page, photo = state.photo.coerceIn(0, photos - 1), part = state.part.coerceIn(0, ZOOM_PARTS - 1))
             Mode.Comments -> if (comments == 0) DetailState(Mode.Post, page) else state.copy(page = page, comment = state.comment.coerceIn(0, comments - 1))
         }

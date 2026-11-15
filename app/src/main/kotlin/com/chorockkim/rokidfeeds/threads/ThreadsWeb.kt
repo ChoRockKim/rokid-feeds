@@ -26,7 +26,14 @@ import org.json.JSONObject
  * 사용자가 보는 만큼만 연다: 목록 끝에 가까워지면 한 번 더 스크롤([loadMore]), 글을 열면 그 글 페이지 하나.
  */
 @SuppressLint("SetJavaScriptEnabled")
-class ThreadsWeb(context: Context, private val deliver: (Source, String, String) -> Unit) {
+class ThreadsWeb(
+    context: Context,
+    /** 이 WebView들이 쓸 프로필(계정, [ThreadsAccounts]). 기본 프로필이면 null. */
+    private val profile: String? = null,
+    /** 그 프로필의 쿠키 저장소(로그인 여부·로그아웃). */
+    val cookies: CookieManager = CookieManager.getInstance(),
+    private val deliver: (Source, String, String) -> Unit,
+) {
     enum class Source { Feed, Post }
 
     private val script = context.assets.open("threads_bridge.js").bufferedReader().use { it.readText() }
@@ -36,6 +43,8 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
     val post: WebView = create(context, Source.Post)
 
     private fun create(context: Context, source: Source): WebView = WebView(context).apply {
+        // 계정 프로필은 WebView를 쓰기 전에 정해야 한다(다른 호출보다 먼저).
+        if (profile != null && profile != androidx.webkit.Profile.DEFAULT_PROFILE_NAME) WebViewCompat.setProfile(this, profile)
         setBackgroundColor(Color.BLACK)
         // 투명도 0은 쓰지 않는다(0.2.17~0.2.19): 안드로이드는 투명도 0인 View를 그리지 않는데, WebView는 그려질 때 프레임을
         // 만들어서 페이지가 멈추고 Threads가 아예 안 불러와졌다(사용자 확인). Compose 화면 뒤에 두고 받는 동안만 켠다.
@@ -48,7 +57,7 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
         settings.blockNetworkImage = true
         if (android.os.Build.VERSION.SDK_INT >= 26) defaultFocusHighlightEnabled = false
         settings.userAgentString = settings.userAgentString.replace("; wv", "")
-        CookieManager.getInstance().setAcceptCookie(true)
+        cookies.setAcceptCookie(true)
         if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
             WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, true)
         }
@@ -150,6 +159,14 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
         feed.evaluateJavascript(js) { if (cont.isActive) cont.resumeWith(Result.success(it ?: "")) }
     }
 
+    /** 이 계정(프로필)이 로그인돼 있는지. */
+    fun isLoggedIn(): Boolean = isLoggedIn(cookies)
+
+    /** 이 계정(프로필)의 쿠키만 지운다. 다른 계정은 그대로. */
+    fun logout(done: () -> Unit) {
+        cookies.removeAllCookies { done() }
+    }
+
     fun destroy() {
         feed.destroy()
         post.destroy()
@@ -237,12 +254,8 @@ class ThreadsWeb(context: Context, private val deliver: (Source, String, String)
             mobile.replace(Regex("\\(Linux; Android[^)]*\\)"), "(X11; Linux x86_64)").replace(" Mobile", "").replace("; wv", "")
 
         /** 로그인돼 있는지: threads.com 쿠키에 세션이 있는지로 본다. */
-        fun isLoggedIn(): Boolean = runCatching {
-            CookieManager.getInstance().getCookie(HOME).orEmpty().let { "sessionid=" in it || "ds_user_id=" in it }
+        fun isLoggedIn(cookies: CookieManager?): Boolean = runCatching {
+            cookies!!.getCookie(HOME).orEmpty().let { "sessionid=" in it || "ds_user_id=" in it }
         }.getOrDefault(false)
-
-        fun logout(done: () -> Unit) {
-            CookieManager.getInstance().removeAllCookies { done() }
-        }
     }
 }

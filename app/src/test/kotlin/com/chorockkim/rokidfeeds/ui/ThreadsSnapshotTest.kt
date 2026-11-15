@@ -11,6 +11,7 @@ import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import com.android.resources.Density
 import com.android.resources.ScreenOrientation
+import com.chorockkim.rokidfeeds.nav.AccountRow
 import com.chorockkim.rokidfeeds.threads.ImageState
 import com.chorockkim.rokidfeeds.threads.ThreadDetail
 import com.chorockkim.rokidfeeds.threads.ThreadItem
@@ -64,7 +65,14 @@ class ThreadsSnapshotTest {
     fun menu() = shot { MenuScreen(selected = 1, threadsLoggedIn = false) }
 
     @Test
-    fun settings_confirmLogout() = shot { SettingsScreen(selected = 0, threadsLoggedIn = true, confirmLogout = true, version = "0.2.11") }
+    fun settings_confirmLogout() = shot {
+        SettingsScreen(selected = 0, accounts = listOf(AccountRow(true, true, name = "first.account"), AccountRow(true, false, name = "second.account")), confirmLogout = true, version = "0.2.26")
+    }
+
+    @Test
+    fun settings_secondEmpty() = shot {
+        SettingsScreen(selected = 1, accounts = listOf(AccountRow(true, true, name = "first.account"), AccountRow(false, false)), confirmLogout = false, version = "0.2.26")
+    }
 
     @Test
     fun threads_feed() = shot { ThreadsFeedScreen(items, selectedIndex = 0, loading = false, loggedIn = true, now = now, image = fakePhoto, lazyThumbs = false) }
@@ -90,6 +98,9 @@ class ThreadsSnapshotTest {
         val p = buildPostPages(quoting, null)
         ThreadPostScreen(p[1], 1, p.size, comments = 0, now = now, image = fakePhoto)
     }
+
+    @Test
+    fun threads_video_paused() = shot { ThreadVideoScreen("original.writer", "v1", paused = true, seek = SeekRequest(), index = 0, total = 2, preview = true) }
 
     @Test
     fun threads_photo_video() = shot { ThreadPhotoScreen(reposted.head, "v1", 0, 2, image = fakePhoto, video = true) }

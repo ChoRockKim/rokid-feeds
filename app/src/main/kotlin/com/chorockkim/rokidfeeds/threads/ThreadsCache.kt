@@ -57,7 +57,7 @@ class ThreadsCache(private val dir: File, private val clock: () -> Long = System
             .put("pk", p.pk).put("code", p.code).put("author", p.author).put("text", p.text).put("takenAt", p.takenAt)
             .put("likes", p.likeCount).put("replies", p.replyCount).put("images", JSONArray(p.images)).put("thumbs", JSONArray(p.thumbs))
             .put("video", p.hasVideo).put("avatar", p.avatar ?: "").put("tall", JSONArray(p.tall))
-            .put("videos", JSONArray(p.videos)).put("repostedBy", p.repostedBy ?: "")
+            .put("videos", JSONArray(p.videos)).put("videoUrls", JSONArray(p.videoUrls)).put("repostedBy", p.repostedBy ?: "")
             .apply { p.quoted?.let { put("quoted", postJson(it)) } }
 
         fun postOf(o: JSONObject): ThreadPost? {
@@ -71,6 +71,7 @@ class ThreadsCache(private val dir: File, private val clock: () -> Long = System
                 avatar = o.optString("avatar").takeIf { it.isNotEmpty() },
                 videos = o.optJSONArray("videos")?.let { a -> (0 until a.length()).map { a.optBoolean(it) } }.orEmpty(),
                 quoted = o.optJSONObject("quoted")?.let(::postOf),
+                videoUrls = strings("videoUrls"),
                 repostedBy = o.optString("repostedBy").takeIf { it.isNotEmpty() },
             )
         }

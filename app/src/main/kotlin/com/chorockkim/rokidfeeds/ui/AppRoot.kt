@@ -26,6 +26,8 @@ fun AppRoot(
     api: NewsApi,
     threads: ThreadsSession?,
     threadsLoggedIn: Boolean,
+    accounts: List<com.chorockkim.rokidfeeds.nav.AccountRow>,
+    onSwitchAccount: (Int) -> Unit,
     onScreen: (Screen) -> Unit,
     onLogout: () -> Unit,
     onExit: () -> Unit,
@@ -47,12 +49,14 @@ fun AppRoot(
         }
         Screen.Settings -> {
             val onKey by rememberUpdatedState { key: NavKey ->
-                val result = AppNav.reduceSettings(app, key, threadsLoggedIn)
+                val result = AppNav.reduceSettings(app, key, accounts)
+                // 계정을 먼저 바꾼다(로그인 화면으로 가면 바뀐 계정의 WebView로 연다).
+                result.switchTo?.let(onSwitchAccount)
                 app = result.state
                 if (result.logout) onLogout()
             }
             LaunchedEffect(keys) { keys.collect { onKey(it) } }
-            SettingsScreen(app.settingsSelected, threadsLoggedIn, app.confirmLogout, com.chorockkim.rokidfeeds.BuildConfig.VERSION_NAME)
+            SettingsScreen(app.settingsSelected, accounts, app.confirmLogout, com.chorockkim.rokidfeeds.BuildConfig.VERSION_NAME)
         }
         Screen.News -> NewsApp(keys = keys, online = online, onBack = onExit, api = api)
         Screen.Threads -> if (threads != null) ThreadsApp(session = threads, keys = keys, onBack = onExit, online = online) else {

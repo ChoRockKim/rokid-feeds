@@ -42,6 +42,8 @@ import com.chorockkim.rokidfeeds.threads.ThreadsWeb
 import com.chorockkim.rokidfeeds.ui.AppRoot
 import com.chorockkim.rokidfeeds.ui.StatusBar
 import com.chorockkim.rokidfeeds.update.InstallResultReceiver
+import com.chorockkim.rokidfeeds.nav.AccountRow
+import com.chorockkim.rokidfeeds.threads.ThreadsAccounts
 import com.chorockkim.rokidfeeds.util.NetErrors
 import com.chorockkim.rokidfeeds.update.Updater
 import java.text.SimpleDateFormat
@@ -74,7 +76,10 @@ class MainActivity : ComponentActivity() {
 
     /** 지금 화면(로그인 화면이면 키를 웹으로 넘긴다). */
     private var screen by mutableStateOf(Screen.Menu)
-    private var threadsLoggedIn by mutableStateOf(ThreadsWeb.isLoggedIn())
+    private var threadsLoggedIn by mutableStateOf(false)
+    /** Threads 계정 칸들(설정 화면). */
+    private var accountRows by mutableStateOf<List<AccountRow>>(emptyList())
+    private val accounts by lazy { ThreadsAccounts(this) }
     /** 폰 링크 로그인(처음 로그인 화면에 들어갈 때 만든다). */
     private var loginFlow by mutableStateOf<ThreadsLoginFlow?>(null)
     private var threadsWeb by mutableStateOf<ThreadsWeb?>(null)
@@ -116,6 +121,7 @@ class MainActivity : ComponentActivity() {
         // 미리보기용: `adb shell am start -n com.chorockkim.rokidfeeds/.MainActivity --es feed geeknews`면 GeekNews만.
         val api = if (intent.getStringExtra("feed") == "geeknews") NewsApi(sources = listOf(NewsApi.GEEKNEWS)) else NewsApi()
         val keyFlow = keys.receiveAsFlow()
+        refreshAccounts()
 
         val compose = ComposeView(this).apply {
             // 접근성에는 아래 RingTarget 하나만 보인다(R08 브리지가 노드를 하나만 고르도록).
@@ -128,6 +134,8 @@ class MainActivity : ComponentActivity() {
                         api = api,
                         threads = threadsSession,
                         threadsLoggedIn = threadsLoggedIn,
+                        accounts = accountRows,
+                        onSwitchAccount = ::switchAccount,
                         onScreen = ::onScreen,
                         onLogout = ::logout,
                         onExit = { finish() },
@@ -217,8 +225,9 @@ class MainActivity : ComponentActivity() {
     private fun threads(): ThreadsSession {
         threadsSession?.let { return it }
         lateinit var session: ThreadsSession
-        val web = ThreadsWeb(this) { source, url, json -> session.onJson(source, url, json) }
-        session = ThreadsSession(web, lifecycleScope, ThreadsCache(java.io.File(filesDir, "threads-cache")))
+        val a = accounts.active
+        val web = ThreadsWeb(this, accounts.profile(a), accounts.cookies(a)) { source, url, json -> session.onJson(source, url, json) }
+        session = ThreadsSession(web, lifecycleScope, ThreadsCache(accounts.cacheDir(a)))
         // 보통은 띠 안에, Compose 화면 **뒤**에 둬서(검정으로 가려짐) 페이지가 보이는 것처럼 계속 돌게 하고
         // (숨김 상태면 무한 스크롤이 멈출 수 있다), 로그인할 때만 화면 세로 전체로 늘려 앞으로 꺼낸다(translationZ).
         listOf(web.feed, web.post).forEach { view ->
@@ -251,7 +260,9 @@ class MainActivity : ComponentActivity() {
             w.setLoginMode(next == Screen.ThreadsLogin)
         }
         if (next == Screen.ThreadsLogin) {
-            val flow = loginFlow ?: ThreadsLoginFlow(threadsWeb!!, LoginRelay(BuildConfig.RELAY_URL), lifecycleScope) {
+            val flow = loginFlow ?: ThreadsLoginFlow(threadsWeb!!, LoginRelay(BuildConfig.RELAY_URL), lifecycleScope) { name ->
+                accounts.setName(accounts.active, name)
+                refreshAccounts()
                 threadsLoggedIn = true
             }.also { loginFlow = it }
             flow.start()
@@ -260,15 +271,52 @@ class MainActivity : ComponentActivity() {
         if (previous == Screen.ThreadsLogin && next != Screen.ThreadsLogin) {
             loginFlow?.stop()
             threadsWeb?.endLogin()
-            threadsLoggedIn = ThreadsWeb.isLoggedIn()
+            refreshAccounts()
             threadsSession?.afterLogin()
         }
     }
 
     private fun logout() {
+        val a = accounts.active
         val session = threadsSession
-        if (session != null) session.logout() else ThreadsWeb.logout {}
+        if (session != null) session.logout() else accounts.cookies(a).removeAllCookies(null)
+        accounts.setName(a, null)
+        accountRows = accountRows.mapIndexed { i, r -> if (i == a) r.copy(loggedIn = false, name = null) else r }
         threadsLoggedIn = false
+    }
+
+    /** 계정 칸들을 쿠키·저장값으로 다시 읽는다. */
+    private fun refreshAccounts() {
+        val active = accounts.active
+        accountRows = (0 until ThreadsAccounts.COUNT).map { i ->
+            val available = i == 0 || accounts.supported
+            AccountRow(
+                loggedIn = available && accounts.isLoggedIn(i),
+                active = i == active,
+                available = available,
+                name = accounts.name(i),
+            )
+        }
+        threadsLoggedIn = accountRows.getOrNull(active)?.loggedIn == true
+    }
+
+    /**
+     * 다른 계정으로 바꾼다: 지금 계정의 WebView·세션을 버리고(다음에 Threads를 열면 바뀐 계정 프로필로 새로 만든다).
+     * 프로필이 따로라 다시 로그인하지 않는다.
+     */
+    private fun switchAccount(i: Int) {
+        if (i == accounts.active || !(i == 0 || accounts.supported)) return
+        loginFlow?.stop()
+        loginFlow = null
+        threadsWeb?.let { w ->
+            root.removeView(w.feed)
+            root.removeView(w.post)
+            w.destroy()
+        }
+        threadsWeb = null
+        threadsSession = null
+        accounts.active = i
+        refreshAccounts()
     }
 
     // endregion
