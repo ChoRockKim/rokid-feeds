@@ -78,9 +78,11 @@ class ThreadsLoginFlow(
             for (m in messages) {
                 when (m) {
                     is LoginRelay.Message.Credentials -> {
-                        username = m.username // 설정에 보여 줄 아이디만 기억한다(비밀번호는 넘기고 버린다)
+                        // 아이디 앞뒤 공백을 뗀다: 아이폰 자동 완성으로 고르면 끝에 공백이 붙어 인스타가 "로그인 정보가 잘못"이라고 했다.
+                        val user = m.username.trim()
+                        username = user // 설정에 보여 줄 아이디만 기억한다(비밀번호는 넘기고 버린다)
                         ui = Ui.LoggingIn(url, session.code)
-                        val result = web.submitLogin(m.username, m.password)
+                        val result = web.submitLogin(user, m.password)
                         if (!result.ok) {
                             // 무엇이 떠 있었는지(입력칸·버튼 이름)를 같이 보여 줘서 원인을 알 수 있게 한다.
                             val why = "로그인 폼을 찾지 못했습니다 (${result.page})"
