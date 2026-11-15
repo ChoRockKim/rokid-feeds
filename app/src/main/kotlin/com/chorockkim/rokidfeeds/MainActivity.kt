@@ -420,7 +420,8 @@ class MainActivity : ComponentActivity() {
     /** 업데이트 확인·받기 중이거나 이미 설치를 넘겼으면 다시 하지 않는다. */
     private var updateRunning = false
     private var updateChecked = false
-    private val UPDATE_RETRY_DELAYS_MS = longArrayOf(0, 3_000, 10_000, 30_000)
+    /** 처음 몇 번은 짧게(핫스팟에 막 붙어 아직 인터넷이 안 잡힌 경우가 대부분이었다), 그다음은 길게. */
+    private val UPDATE_RETRY_DELAYS_MS = longArrayOf(0, 1_500, 4_000, 10_000, 30_000)
     private val UPDATE_FAIL_NOTICE_MS = 15_000L
     private val UPDATE_RETRY_LONG_MS = 5 * 60_000L
 
@@ -444,19 +445,20 @@ class MainActivity : ComponentActivity() {
      */
     private suspend fun checkWithRetry(updater: Updater): Result<Updater.Check> {
         var last: Result<Updater.Check> = Result.failure(IllegalStateException())
-        val total = UPDATE_RETRY_DELAYS_MS.size
-        for ((i, wait) in UPDATE_RETRY_DELAYS_MS.withIndex()) {
+        for (wait in UPDATE_RETRY_DELAYS_MS) {
             if (wait > 0) delay(wait)
             if (!online) continue
-            // 서버가 잠들어 있으면 첫 응답이 늦다: 2초 넘게 걸리면 죽은 게 아니라 깨우는 중이라고 보여 준다.
+            // 서버가 잠들어 있으면 첫 응답이 늦다(Railway 기록: 깨는 데 약 2초). 요청이 2초 넘게 걸리는 동안만
+            // "깨우는 중"을 보여 준다. 실패 뒤 다시 하기까지 기다리는 동안은 띄우지 않는다: 그 실패는 대개 서버가 아니라
+            // 안경 인터넷이 아직 안 잡힌 것이었는데 "깨우는 중"으로 보여 오래 걸리는 것처럼 보였다(사용자 확인 2026-11-15).
             val hint = lifecycleScope.launch {
                 delay(NetErrors.WAKE_HINT_MS)
-                updateText = "업데이트 서버 깨우는 중…" + if (i > 0) " (${i + 1}/$total)" else ""
+                updateText = "업데이트 서버 깨우는 중…"
             }
             last = runCatching { updater.check() }
             hint.cancel()
-            if (last.isSuccess) { if (updateText?.startsWith("업데이트 서버 깨우는 중") == true) updateText = null; return last }
-            if (i < total - 1) updateText = "업데이트 서버 깨우는 중… (${i + 2}/$total)"
+            if (updateText?.startsWith("업데이트 서버 깨우는 중") == true) updateText = null
+            if (last.isSuccess) return last
         }
         return last
     }
