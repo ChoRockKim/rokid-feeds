@@ -25,6 +25,9 @@ fun AppRoot(
     online: Boolean,
     api: NewsApi,
     threads: ThreadsSession?,
+    insta: com.chorockkim.rokidfeeds.insta.InstaSession?,
+    instaLogin: com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui?,
+    onInstaLoginRetry: () -> Unit,
     threadsLoggedIn: Boolean,
     accounts: List<com.chorockkim.rokidfeeds.nav.AccountRow>,
     onSwitchAccount: (Int) -> Unit,
@@ -63,6 +66,24 @@ fun AppRoot(
             val onKey by rememberUpdatedState { key: NavKey -> if (key == NavKey.Back) onExit() }
             LaunchedEffect(keys) { keys.collect { onKey(it) } }
             LoadingView()
+        }
+        Screen.Insta -> if (insta != null) {
+            InstaApp(session = insta, keys = keys, onBack = onExit, onLogin = { app = app.copy(screen = Screen.InstaLogin) })
+        } else {
+            val onKey by rememberUpdatedState { key: NavKey -> if (key == NavKey.Back) onExit() }
+            LaunchedEffect(keys) { keys.collect { onKey(it) } }
+            LoadingView()
+        }
+        Screen.InstaLogin -> {
+            val onKey by rememberUpdatedState { key: NavKey ->
+                when (key) {
+                    NavKey.Back -> app = AppNav.backFromLogin(app)
+                    NavKey.Select -> if (instaLogin is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Failed) onInstaLoginRetry()
+                    else -> Unit
+                }
+            }
+            LaunchedEffect(keys) { keys.collect { onKey(it) } }
+            ThreadsLoginScreen(instaLogin, title = "Instagram 로그인 · 폰에서", backHint = "뒤로: 스토리")
         }
         Screen.ThreadsLogin -> {
             // 뒤로 = 설정, 탭 = (실패했으면) 새 코드로 다시 시작.

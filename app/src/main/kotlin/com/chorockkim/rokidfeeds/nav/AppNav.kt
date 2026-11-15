@@ -1,12 +1,13 @@
 package com.chorockkim.rokidfeeds.nav
 
 /** 앱의 큰 화면. 메인 메뉴에서 고른다. */
-enum class Screen { Menu, News, Threads, Settings, ThreadsLogin }
+enum class Screen { Menu, News, Threads, Settings, ThreadsLogin, Insta, InstaLogin }
 
 /** 메인 메뉴 줄. 로그인·로그아웃은 실수로 누르지 않게 설정 안에 둔다. */
 enum class MenuItem(val screen: Screen) {
     News(Screen.News),
     Threads(Screen.Threads),
+    Instagram(Screen.Insta),
     Settings(Screen.Settings),
 }
 
@@ -73,5 +74,7 @@ object AppNav {
 
     fun backToMenu(state: AppState): AppState = state.copy(screen = Screen.Menu)
 
-    fun backFromLogin(state: AppState): AppState = state.copy(screen = Screen.Settings)
+    /** 로그인 화면에서 뒤로: Threads 로그인은 설정에서, 인스타 로그인은 스토리 화면에서 왔다. */
+    fun backFromLogin(state: AppState): AppState =
+        state.copy(screen = if (state.screen == Screen.InstaLogin) Screen.Insta else Screen.Settings)
 }

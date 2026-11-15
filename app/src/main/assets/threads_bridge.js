@@ -5,7 +5,8 @@
   window.__rokidThreads = true;
   function send(text) {
     try {
-      if (typeof text === 'string' && text.indexOf('"taken_at"') >= 0) RokidThreads.onJson(location.href, text);
+      // 글 데이터("taken_at") 또는 인스타 스토리 목록("latest_reel_media"·"reels_media")만.
+      if (typeof text === 'string' && (text.indexOf('"taken_at"') >= 0 || text.indexOf('"latest_reel_media"') >= 0 || text.indexOf('reels_media') >= 0)) RokidThreads.onJson(location.href, text);
     } catch (e) {}
   }
   var originalFetch = window.fetch;

@@ -1,6 +1,6 @@
 # rokid-feeds
 
-Rokid 안경 읽기 앱. 메인 메뉴에서 **뉴스**(연합뉴스·동아일보·경향신문 RSS와 GeekNews를 하나의 통합 목록으로)와 **Threads**(threads.com 글·댓글·답글·사진)를 고른다.
+Rokid 안경 읽기 앱. 메인 메뉴에서 **뉴스**(연합뉴스·동아일보·경향신문 RSS와 GeekNews를 하나의 통합 목록으로), **Threads**(threads.com 글·댓글·답글·사진), **Instagram**(스토리만)을 고른다.
 화면·입력·네트워크·배포는 다른 Rokid 앱(rokid-lens, rokid-youtube, rokid-conversate, rokid-glass-ios-navigation)과 같은 규칙을 따른다.
 공통 사실·방법은 `ChoRockKim/rokid-conversate`의 `docs/rokid-dev-notes.md`에 있다.
 
@@ -39,6 +39,12 @@ Rokid 안경 읽기 앱. 메인 메뉴에서 **뉴스**(연합뉴스·동아일�
 - 화면은 Threads 앱 모양(`ui/ThreadsLook.kt`): 아바타·굵은 이름·오른쪽 시각·선으로 그린 아이콘 줄·구분선. 사진·아바타는 녹색 단색 필터, 이모지는 뺀다(`util/Emoji.kt`).
 - 계정은 두 개(`threads/ThreadsAccounts`): 계정마다 WebView 프로필(`WebViewCompat.setProfile`, 쿠키·저장소 분리)과 저장본 폴더를 따로 둔다. 계정 1 = 기본 프로필. 설정에서 로그인 안 한 칸 = 폰 로그인, 다른 계정 = 전환(WebView를 버리고 그 프로필로 다시 만든다), 지금 계정 = 두 번 탭 로그아웃. 아이디만 표시용으로 저장하고 비밀번호는 저장하지 않는다. 사용자 안경 WebView는 `MULTI_PROFILE`을 지원하지 않아(실기 2026-11-15) **쿠키 바꿔 끼우기**로 동작한다(`threads/CookieSnapshot`): 바꿀 때 지금 계정의 threads·instagram 쿠키를 앱 내부 저장소에 보관 → WebView 쿠키·웹 저장소를 지움 → 대상 계정 저장본을 `.threads.com`·Path=/·Secure·1년으로 다시 넣는다(만료 등 속성은 잃음, 실기 미확인).
 - 클라우드에서 확인한 것은 로그인하지 않은 Chromium뿐이다. 로그인 상태·안드로이드 WebView는 실기 미확인.
+
+## Instagram (스토리만)
+- Threads와 같은 숨은 WebView(`ThreadsWeb`에 `Site.Instagram`)·브리지·폰 링크 로그인·계정 전환을 쓴다. 인스타 로그인은 instagram.com 로그인 폼(`email`·`pass` 칸, 2026-11-15 Chromium 확인)에 넣는다.
+- `insta/InstaStories`(순수): 목록 `tray[]`(사람·`latest_reel_media`·`seen`), 한 사람 `reels_media[].items[]`(`media_type`·`image_versions2`·`video_versions`). 키 이름보다 모양(사람 객체 + 시각/items)으로 찾는다. 모양은 공개 자료로 짐작했고 로그인 상태 응답은 **실기 미확인**.
+- `insta/InstaSession`: 목록 = instagram.com 홈, 사람을 고르면 `/stories/아이디/`를 열고 장을 받으면 바로 `about:blank`로 비운다(페이지가 스스로 넘기며 받고 "봤음"을 남길 수 있어서). 미리 받지 않는다.
+- 이동은 `nav/StoryNav`(순수): 목록 → 탭 보기 → 다음/이전 장(사람 끝이면 다음 사람, 마지막이면 목록), 탭 멈춤, 뒤로 목록, 목록에서 뒤로 종료. 사진 6초, 동영상은 끝나면 다음(`ui/InstaApp`, 플레이어는 `VideoPlayer` 공용).
 
 ## 네트워크
 - Wi-Fi 고르기·연결은 **시스템에 맡긴다**(저장된 iPhone 핫스팟에 자동 연결). 앱이 네트워크를 고르면(`WifiNetworkSpecifier`) 시스템 확인 창이 뜨므로 쓰지 않는다.

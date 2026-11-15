@@ -352,9 +352,13 @@ fun ThreadCommentsScreen(
  * 안경에서는 칠 것이 없다. 진행 상태(기다림 / 로그인 중 / 인증 코드 필요 / 완료 / 실패)를 보여 준다.
  */
 @Composable
-fun ThreadsLoginScreen(ui: com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui?) {
+fun ThreadsLoginScreen(
+    ui: com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui?,
+    title: String = "Threads 로그인 · 폰에서",
+    backHint: String = "뒤로: 설정",
+) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        BasicText("Threads 로그인 · 폰에서", style = Glass.Heading)
+        BasicText(title, style = Glass.Heading)
         when (ui) {
             null -> BasicText("준비 중…", style = Glass.Body)
             is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Starting -> if (ui.waking) {
@@ -374,14 +378,14 @@ fun ThreadsLoginScreen(ui: com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui
                 BasicText("인증 코드가 필요합니다 · 폰 화면에 코드를 넣으세요", style = Glass.Body, maxLines = 2)
                 BasicText(ui.label, style = Glass.BodySmall, maxLines = 1)
             }
-            is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Done -> BasicText("로그인 완료 · 뒤로를 누르면 설정으로 갑니다", style = Glass.Body)
+            is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Done -> BasicText("로그인 완료 · 뒤로를 누르면 돌아갑니다", style = Glass.Body)
             is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Failed -> {
                 BasicText(ui.message, style = Glass.Body, maxLines = 3)
                 BasicText("탭: 다시 시도", style = Glass.Label)
             }
         }
         Column(Modifier.weight(1f)) {}
-        BasicText("뒤로: 설정 · 비밀번호는 안경·서버에 저장하지 않습니다", style = Glass.Caption, maxLines = 1)
+        BasicText("$backHint · 비밀번호는 안경·서버에 저장하지 않습니다", style = Glass.Caption, maxLines = 1)
     }
 }
 

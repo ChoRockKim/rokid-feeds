@@ -22,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,6 +64,41 @@ fun ThreadVideoScreen(
     /** 스냅샷에서는 플레이어를 만들지 않는다. */
     preview: Boolean = false,
 ) {
+    var time by remember(url) { mutableStateOf("") }
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        VideoPlayer(
+            url, paused, Modifier.fillMaxWidth().weight(1f), seek = seek, preview = preview,
+            onProgress = { pos, dur -> time = "${clock(pos)} / ${clock(dur)}" },
+        )
+        Row(Modifier.fillMaxWidth()) {
+            BasicText(
+                "@$author · 탭 " + (if (paused) "재생" else "일시정지") + " · ◀ ▶ ${com.chorockkim.rokidfeeds.nav.VIDEO_SEEK_S}초 · 뒤로 사진",
+                style = Glass.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+            )
+            BasicText(listOf(time, "${index + 1}/$total").filter { it.isNotEmpty() }.joinToString(" · "), style = Glass.Caption)
+        }
+    }
+}
+
+/**
+ * 동영상 재생 칸(Threads 동영상·인스타 스토리 공용). [paused]로 일시정지, [seek]으로 앞뒤, 끝나면 [onEnded],
+ * 1초마다 [onProgress](위치, 길이 ms). 화면을 떠나면 멈추고 놓는다.
+ */
+@Composable
+fun VideoPlayer(
+    url: String,
+    paused: Boolean,
+    modifier: Modifier = Modifier,
+    seek: SeekRequest = SeekRequest(),
+    preview: Boolean = false,
+    endedText: String? = "끝 · 탭하면 처음부터",
+    onProgress: (positionMs: Int, durationMs: Int) -> Unit = { _, _ -> },
+    onEnded: () -> Unit = {},
+) {
+    val currentOnEnded by rememberUpdatedState(onEnded)
+    val currentOnProgress by rememberUpdatedState(onProgress)
+    val currentPaused by rememberUpdatedState(paused)
+    val pausedNow = { currentPaused }
     var ui by remember(url) { mutableStateOf<VideoUi>(VideoUi.Loading) }
     var aspect by remember(url) { mutableStateOf(0.8f) }
     val player = remember(url) { if (preview) null else MediaPlayer() }
@@ -74,10 +110,10 @@ fun ThreadVideoScreen(
             player.setOnPreparedListener { mp ->
                 prepared = true
                 if (mp.videoWidth > 0 && mp.videoHeight > 0) aspect = mp.videoWidth.toFloat() / mp.videoHeight
-                mp.start()
+                if (!pausedNow()) mp.start()
                 ui = VideoUi.Playing(0, mp.duration)
             }
-            player.setOnCompletionListener { ui = VideoUi.Ended }
+            player.setOnCompletionListener { ui = VideoUi.Ended; currentOnEnded() }
             player.setOnErrorListener { _, what, _ -> ui = VideoUi.Failed(what); true }
             runCatching {
                 player.setDataSource(url)
@@ -103,7 +139,7 @@ fun ThreadVideoScreen(
         // 진행 시간(1초마다).
         LaunchedEffect(player, prepared) {
             while (prepared) {
-                runCatching { if (ui !is VideoUi.Failed && ui != VideoUi.Ended) ui = VideoUi.Playing(player.currentPosition, player.duration) }
+                runCatching { if (ui !is VideoUi.Failed && ui != VideoUi.Ended) ui = VideoUi.Playing(player.currentPosition, player.duration).also { p -> currentOnProgress(p.positionMs, p.durationMs) } }
                 delay(1_000)
             }
         }
@@ -116,45 +152,35 @@ fun ThreadVideoScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-            if (player != null) {
-                AndroidView(
-                    factory = { context ->
-                        TextureView(context).apply {
-                            isFocusable = false
-                            // 녹색 단색: 사진과 같은 색 행렬(빨강 0, 초록 = 밝기, 파랑 조금).
-                            setLayerType(android.view.View.LAYER_TYPE_HARDWARE, Paint().apply { colorFilter = ColorMatrixColorFilter(GREEN_MATRIX) })
-                            surfaceTextureListener = object : TextureView.SurfaceTextureListener {
-                                override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
-                                    runCatching { player.setSurface(Surface(st)) }
-                                }
-                                override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) = Unit
-                                override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
-                                    runCatching { player.setSurface(null) }
-                                    return true
-                                }
-                                override fun onSurfaceTextureUpdated(st: SurfaceTexture) = Unit
+    Box(modifier, contentAlignment = Alignment.Center) {
+        if (player != null) {
+            AndroidView(
+                factory = { context ->
+                    TextureView(context).apply {
+                        isFocusable = false
+                        // 녹색 단색: 사진과 같은 색 행렬(빨강 0, 초록 = 밝기, 파랑 조금).
+                        setLayerType(android.view.View.LAYER_TYPE_HARDWARE, Paint().apply { colorFilter = ColorMatrixColorFilter(GREEN_MATRIX) })
+                        surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+                            override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
+                                runCatching { player.setSurface(Surface(st)) }
                             }
+                            override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) = Unit
+                            override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
+                                runCatching { player.setSurface(null) }
+                                return true
+                            }
+                            override fun onSurfaceTextureUpdated(st: SurfaceTexture) = Unit
                         }
-                    },
-                    modifier = Modifier.aspectRatio(aspect, matchHeightConstraintsFirst = true).clip(RoundedCornerShape(12.dp)),
-                )
-            }
-            when (val u = ui) {
-                VideoUi.Loading -> BasicText("동영상 불러오는 중…", style = Glass.BodySmall)
-                is VideoUi.Failed -> BasicText("동영상을 재생하지 못했습니다 (${u.what})", style = Glass.BodySmall)
-                VideoUi.Ended -> BasicText("끝 · 탭하면 처음부터", style = Glass.BodySmall)
-                is VideoUi.Playing -> if (paused) PlayBadge(44.dp)
-            }
-        }
-        val time = (ui as? VideoUi.Playing)?.let { "${clock(it.positionMs)} / ${clock(it.durationMs)}" } ?: ""
-        Row(Modifier.fillMaxWidth()) {
-            BasicText(
-                "@$author · 탭 " + (if (paused) "재생" else "일시정지") + " · ◀ ▶ ${com.chorockkim.rokidfeeds.nav.VIDEO_SEEK_S}초 · 뒤로 사진",
-                style = Glass.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                    }
+                },
+                modifier = Modifier.aspectRatio(aspect, matchHeightConstraintsFirst = true).clip(RoundedCornerShape(12.dp)),
             )
-            BasicText(listOf(time, "${index + 1}/$total").filter { it.isNotEmpty() }.joinToString(" · "), style = Glass.Caption)
+        }
+        when (val u = ui) {
+            VideoUi.Loading -> BasicText("동영상 불러오는 중…", style = Glass.BodySmall)
+            is VideoUi.Failed -> BasicText("동영상을 재생하지 못했습니다 (${u.what})", style = Glass.BodySmall)
+            VideoUi.Ended -> endedText?.let { BasicText(it, style = Glass.BodySmall) }
+            is VideoUi.Playing -> if (paused) PlayBadge(44.dp)
         }
     }
 }

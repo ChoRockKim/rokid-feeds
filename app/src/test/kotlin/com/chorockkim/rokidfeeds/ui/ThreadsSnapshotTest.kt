@@ -168,6 +168,34 @@ class ThreadsSnapshotTest {
         ThreadCommentsScreen(detail.replies, selected = 1, loading = false, expected = 3, now = now, image = fakePhoto, lazyThumbs = false)
     }
 
+    private val reels = listOf(
+        com.chorockkim.rokidfeeds.insta.StoryReel("1", "story.friend", now - 1800, items = listOf(
+            com.chorockkim.rokidfeeds.insta.StoryItem("a", now - 3000, "s1"),
+            com.chorockkim.rokidfeeds.insta.StoryItem("b", now - 1800, "s2"),
+            com.chorockkim.rokidfeeds.insta.StoryItem("c", now - 900, "s3", video = "v"),
+        )),
+        com.chorockkim.rokidfeeds.insta.StoryReel("2", "another.person", now - 7200),
+        com.chorockkim.rokidfeeds.insta.StoryReel("3", "seen.already", now - 20000, seen = true),
+    )
+
+    @Test
+    fun insta_tray() = shot { InstaTrayScreen(reels, selected = 0, loading = false, loggedIn = true, now = now) }
+
+    @Test
+    fun insta_notLoggedIn() = shot { InstaTrayScreen(emptyList(), selected = 0, loading = false, loggedIn = false, now = now) }
+
+    @Test
+    fun insta_story_photo() = shot {
+        InstaStoryScreen(reels[0], item = 1, progress = 0.4f, paused = false, loading = false, error = null, now = now) { m ->
+            StoryPhoto("s2", m, paused = false, image = fakePhoto)
+        }
+    }
+
+    @Test
+    fun insta_story_loading() = shot {
+        InstaStoryScreen(reels[1], item = 0, progress = 0f, paused = false, loading = true, error = null, now = now) { }
+    }
+
     @Test
     fun threads_login_waiting() = shot {
         ThreadsLoginScreen(com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Waiting("server-v2-production-8f97.up.railway.app/login", "482913"))

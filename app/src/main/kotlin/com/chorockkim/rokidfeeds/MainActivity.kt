@@ -44,6 +44,8 @@ import com.chorockkim.rokidfeeds.ui.StatusBar
 import com.chorockkim.rokidfeeds.update.InstallResultReceiver
 import com.chorockkim.rokidfeeds.nav.AccountRow
 import com.chorockkim.rokidfeeds.threads.ThreadsAccounts
+import com.chorockkim.rokidfeeds.threads.Site
+import com.chorockkim.rokidfeeds.insta.InstaSession
 import com.chorockkim.rokidfeeds.util.NetErrors
 import com.chorockkim.rokidfeeds.update.Updater
 import java.text.SimpleDateFormat
@@ -85,6 +87,10 @@ class MainActivity : ComponentActivity() {
     private var threadsWeb by mutableStateOf<ThreadsWeb?>(null)
     /** Threads를 처음 고를 때 만든다(WebView). 화면은 이 값이 생기면 그린다. */
     private var threadsSession by mutableStateOf<ThreadsSession?>(null)
+    /** 인스타 스토리(처음 Instagram을 고를 때 만든다). Threads와 같은 숨은 WebView 방식, 사이트만 다르다. */
+    private var instaWeb by mutableStateOf<ThreadsWeb?>(null)
+    private var instaSession by mutableStateOf<InstaSession?>(null)
+    private var instaLoginFlow by mutableStateOf<ThreadsLoginFlow?>(null)
     private lateinit var root: FrameLayout
     private lateinit var ringTarget: RingTarget
 
@@ -133,6 +139,9 @@ class MainActivity : ComponentActivity() {
                         online = online,
                         api = api,
                         threads = threadsSession,
+                        insta = instaSession,
+                        instaLogin = instaLoginFlow?.ui,
+                        onInstaLoginRetry = { instaLoginFlow?.start() },
                         threadsLoggedIn = threadsLoggedIn,
                         accounts = accountRows,
                         onSwitchAccount = ::switchAccount,
@@ -174,6 +183,7 @@ class MainActivity : ComponentActivity() {
     private fun notice(): String? = WifiEnabler.label(wifiStatus, online)
         ?: threadsSession?.detailStatus?.takeIf { screen == Screen.Threads }
         ?: "Threads 불러오는 중…".takeIf { threadsWeb?.busy == true && screen == Screen.Threads }
+        ?: "Instagram 불러오는 중…".takeIf { instaWeb?.busy == true && screen == Screen.Insta }
         ?: crashText
 
     override fun onStart() {
@@ -202,6 +212,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         threadsWeb?.destroy()
+        instaWeb?.destroy()
         networkCallback?.let { getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(it) }
         super.onDestroy()
     }
@@ -239,6 +250,21 @@ class MainActivity : ComponentActivity() {
         return session
     }
 
+    private fun insta(): InstaSession {
+        instaSession?.let { return it }
+        lateinit var session: InstaSession
+        val a = accounts.active
+        val web = ThreadsWeb(this, accounts.profile(a), accounts.cookies(a), Site.Instagram) { source, _, json -> session.onJson(source, json) }
+        session = InstaSession(web, lifecycleScope)
+        listOf(web.feed, web.post).forEach { view ->
+            view.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            root.addView(view, 0, bandParams())
+        }
+        instaWeb = web
+        instaSession = session
+        return session
+    }
+
     /** WebView 자리: 띠와 같은 자리(Compose 화면 뒤라 보이지 않는다). */
     private fun bandParams(): FrameLayout.LayoutParams {
         val density = resources.displayMetrics.density
@@ -258,6 +284,23 @@ class MainActivity : ComponentActivity() {
             // Threads 밖에서는 WebView를 쉬게 하고 빼 둔다(그리지 않음 → 뉴스·메뉴에서 링·화면이 가볍다).
             if (threadsScreen) w.wake() else w.sleep()
             w.setLoginMode(next == Screen.ThreadsLogin)
+        }
+        val instaScreen = next == Screen.Insta || next == Screen.InstaLogin
+        if (instaScreen) insta()
+        instaWeb?.let { w ->
+            if (instaScreen) w.wake() else w.sleep()
+            w.setLoginMode(next == Screen.InstaLogin)
+        }
+        if (next == Screen.InstaLogin) {
+            val flow = instaLoginFlow ?: ThreadsLoginFlow(instaWeb!!, LoginRelay(BuildConfig.RELAY_URL), lifecycleScope) { _ ->
+                instaSession?.afterLogin()
+            }.also { instaLoginFlow = it }
+            flow.start()
+        }
+        if (previous == Screen.InstaLogin && next != Screen.InstaLogin) {
+            instaLoginFlow?.stop()
+            instaWeb?.endLogin()
+            instaSession?.afterLogin()
         }
         if (next == Screen.ThreadsLogin) {
             val flow = loginFlow ?: ThreadsLoginFlow(threadsWeb!!, LoginRelay(BuildConfig.RELAY_URL), lifecycleScope) { name ->
@@ -316,6 +359,15 @@ class MainActivity : ComponentActivity() {
         }
         threadsWeb = null
         threadsSession = null
+        instaLoginFlow?.stop()
+        instaLoginFlow = null
+        instaWeb?.let { w ->
+            root.removeView(w.feed)
+            root.removeView(w.post)
+            w.destroy()
+        }
+        instaWeb = null
+        instaSession = null
         accounts.switchTo(i) // 프로필이 없으면 여기서 쿠키를 바꿔 끼운다(WebView를 버린 뒤)
         refreshAccounts()
     }

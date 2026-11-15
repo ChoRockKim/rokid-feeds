@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -16,23 +17,26 @@ import com.chorockkim.rokidfeeds.nav.MenuItem
 /** 메인 메뉴. 줄 이름과 설명만 보여 주고 입력은 Activity → [com.chorockkim.rokidfeeds.nav.AppNav]가 처리한다. */
 @Composable
 fun MenuScreen(selected: Int, threadsLoggedIn: Boolean) {
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    // 네 줄이 띠에 들어가게 줄마다 이름과 설명을 한 줄에(두 줄로 두면 마지막 줄과 안내가 잘렸다).
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         BasicText("Rokid Feeds", style = Glass.Heading)
         MenuItem.entries.forEachIndexed { index, item ->
             val (title, sub) = when (item) {
                 MenuItem.News -> "뉴스" to "연합뉴스 · 동아일보 · 경향신문 · GeekNews"
-                MenuItem.Threads -> "Threads" to if (threadsLoggedIn) "내 피드 · 글 · 댓글 · 사진" else "로그인하지 않으면 일부 글만 보입니다 · 설정에서 로그인"
-                MenuItem.Settings -> "설정" to "Threads 로그인·로그아웃 · 앱 버전"
+                MenuItem.Threads -> "Threads" to if (threadsLoggedIn) "내 피드 · 글 · 댓글 · 사진" else "로그인 안 함 · 일부 글만 · 설정에서 로그인"
+                MenuItem.Instagram -> "Instagram" to "스토리 보기"
+                MenuItem.Settings -> "설정" to "Threads 계정 · 앱 버전"
             }
             val on = index == selected
-            Column(
+            androidx.compose.foundation.layout.Row(
                 Modifier
                     .fillMaxWidth()
                     .border(if (on) 2.dp else 1.dp, if (on) Glass.Primary else Glass.Primary40, RoundedCornerShape(12.dp))
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             ) {
-                BasicText(title, style = if (on) Glass.Body else Glass.Body.copy(color = Glass.Dim))
-                BasicText(sub, style = Glass.BodySmall, maxLines = 1)
+                BasicText(title, style = if (on) Glass.Body else Glass.Body.copy(color = Glass.Dim), modifier = Modifier.width(92.dp))
+                BasicText(sub, style = Glass.BodySmall, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
         }
         Column(Modifier.weight(1f)) {}

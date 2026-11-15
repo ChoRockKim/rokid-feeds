@@ -135,7 +135,7 @@ object ThreadsParser {
         )
     }
 
-    private fun videoUrl(o: JSONObject): String? = o.optJSONArray("video_versions")?.let { a ->
+    internal fun videoUrl(o: JSONObject): String? = o.optJSONArray("video_versions")?.let { a ->
         (0 until a.length()).mapNotNull { a.optJSONObject(it)?.optString("url") }.firstOrNull { it.startsWith("https://") }
     }
 
@@ -145,7 +145,7 @@ object ThreadsParser {
     private const val MEDIA_VIDEO = 2
 
     /** 사진의 세로가 가로보다 조금이라도 긴지: 원본 크기(original_width/height), 없으면 가장 큰 후보의 크기로. */
-    private fun isTall(o: JSONObject): Boolean {
+    internal fun isTall(o: JSONObject): Boolean {
         var w = o.optInt("original_width")
         var h = o.optInt("original_height")
         if (w <= 0 || h <= 0) {
@@ -158,7 +158,7 @@ object ThreadsParser {
         return w > 0 && h > w
     }
 
-    private fun bestImage(o: JSONObject, target: Int): String? {
+    internal fun bestImage(o: JSONObject, target: Int): String? {
         val candidates = o.optJSONObject("image_versions2")?.optJSONArray("candidates") ?: return null
         val list = (0 until candidates.length()).mapNotNull { candidates.optJSONObject(it) }
             .filter { it.optString("url").startsWith("https://") }
@@ -171,7 +171,7 @@ object ThreadsParser {
      * 깊이 우선으로 돈다. [visit]가 true를 돌려주면 그 값 안으로는 더 들어가지 않는다(이미 처리함).
      * [skip]에 있는 키 아래는 보지 않는다.
      */
-    private fun walk(value: Any?, skip: Set<String>, key: String? = null, visit: (String?, Any?) -> Boolean) {
+    internal fun walk(value: Any?, skip: Set<String>, key: String? = null, visit: (String?, Any?) -> Boolean) {
         if (visit(key, value)) return
         when (value) {
             is JSONObject -> value.keys().forEach { k -> if (k !in skip) walk(value.opt(k), skip, k, visit) }

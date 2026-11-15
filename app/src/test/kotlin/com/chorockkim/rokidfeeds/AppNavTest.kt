@@ -16,11 +16,12 @@ import org.junit.Test
 class AppNavTest {
     @Test
     fun `메뉴는 뉴스·Threads·설정이고 양끝에서 순환한다`() {
-        assertEquals(listOf(Screen.News, Screen.Threads, Screen.Settings), MenuItem.entries.map { it.screen })
+        assertEquals(listOf(Screen.News, Screen.Threads, Screen.Insta, Screen.Settings), MenuItem.entries.map { it.screen })
+        assertEquals(Screen.Insta, AppNav.backFromLogin(AppState(Screen.InstaLogin)).screen)
         val last = MenuItem.entries.lastIndex
         assertEquals(last, AppNav.reduceMenu(AppState(), NavKey.Previous).state.menuSelected)
         assertEquals(0, AppNav.reduceMenu(AppState(menuSelected = last), NavKey.Next).state.menuSelected)
-        assertEquals(Screen.Settings, AppNav.reduceMenu(AppState(menuSelected = 2), NavKey.Select).state.screen)
+        assertEquals(Screen.Settings, AppNav.reduceMenu(AppState(menuSelected = 3), NavKey.Select).state.screen)
     }
 
     @Test

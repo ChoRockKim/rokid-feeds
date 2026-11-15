@@ -32,6 +32,8 @@ class ThreadsWeb(
     private val profile: String? = null,
     /** 그 프로필의 쿠키 저장소(로그인 여부·로그아웃). */
     val cookies: CookieManager = CookieManager.getInstance(),
+    /** 어느 사이트를 여는지(Threads 또는 Instagram 스토리). 그 사이트 주소에서 온 JSON만 받는다. */
+    val site: Site = Site.Threads,
     private val deliver: (Source, String, String) -> Unit,
 ) {
     enum class Source { Feed, Post }
@@ -88,12 +90,15 @@ class ThreadsWeb(
     private inner class Bridge(private val source: Source) {
         @JavascriptInterface
         fun onJson(pageUrl: String, json: String) {
-            if (!isThreads(Uri.parse(pageUrl))) return
+            if (!site.owns(Uri.parse(pageUrl))) return
             main.post { deliver(source, pageUrl, json) }
         }
     }
 
-    fun openHome() = feed.loadUrl(HOME)
+    fun openHome() = feed.loadUrl(site.home)
+
+    /** 글 WebView로 아무 페이지나 연다(인스타 스토리 페이지). */
+    fun openPage(url: String) = post.loadUrl(url)
 
 
     /**
@@ -130,7 +135,7 @@ class ThreadsWeb(
      */
     fun openLogin() {
         feed.settings.userAgentString = desktopUserAgent(mobileUserAgent)
-        feed.loadUrl(LOGIN)
+        feed.loadUrl(site.login)
     }
 
     /** 로그인 화면을 나가면 원래(모바일) UA로. 글 데이터 모양은 모바일 UA에서 확인했다. */
@@ -160,7 +165,7 @@ class ThreadsWeb(
     }
 
     /** 이 계정(프로필)이 로그인돼 있는지. */
-    fun isLoggedIn(): Boolean = isLoggedIn(cookies)
+    fun isLoggedIn(): Boolean = isLoggedIn(cookies, site)
 
     /** 이 계정(프로필)의 쿠키만 지운다. 다른 계정은 그대로. */
     fun logout(done: () -> Unit) {
@@ -227,7 +232,6 @@ class ThreadsWeb(
         }
 
         const val HOME = "https://www.threads.com/"
-        const val LOGIN = "https://www.threads.com/login"
         // 인스타그램은 로그인 단계에서 거친다. 거기서는 입력칸 이동 도우미만 쓰고 글 JSON은 받지 않는다(Bridge가 threads 주소만 받음).
         private val ALLOWED_ORIGINS = setOf("https://www.threads.com", "https://threads.com", "https://www.threads.net", "https://www.instagram.com")
 
@@ -253,9 +257,9 @@ class ThreadsWeb(
         fun desktopUserAgent(mobile: String): String =
             mobile.replace(Regex("\\(Linux; Android[^)]*\\)"), "(X11; Linux x86_64)").replace(" Mobile", "").replace("; wv", "")
 
-        /** 로그인돼 있는지: threads.com 쿠키에 세션이 있는지로 본다. */
-        fun isLoggedIn(cookies: CookieManager?): Boolean = runCatching {
-            cookies!!.getCookie(HOME).orEmpty().let { "sessionid=" in it || "ds_user_id=" in it }
+        /** 로그인돼 있는지: 그 사이트 쿠키에 세션이 있는지로 본다. */
+        fun isLoggedIn(cookies: CookieManager?, site: Site = Site.Threads): Boolean = runCatching {
+            cookies!!.getCookie(site.home).orEmpty().let { "sessionid=" in it || "ds_user_id=" in it }
         }.getOrDefault(false)
     }
 }
