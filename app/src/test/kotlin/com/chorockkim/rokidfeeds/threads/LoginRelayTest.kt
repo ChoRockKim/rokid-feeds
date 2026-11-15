@@ -19,6 +19,17 @@ class LoginRelayTest {
     }
 
     @Test
+    fun `폰이 안경 화면에서 누른 자리·끌기·글자를 읽고 범위 밖은 버린다`() {
+        val json = """{"messages":[
+            {"kind":"tap","x":0.25,"y":1},{"kind":"tap","x":2,"y":0},{"kind":"tap","x":"a","y":0},
+            {"kind":"scroll","dy":-3},{"kind":"type","text":"ab"},{"kind":"type","text":""}]}"""
+        assertEquals(
+            listOf(LoginRelay.Message.Tap(0.25f, 1f), LoginRelay.Message.Scroll(-1f), LoginRelay.Message.Type("ab")),
+            LoginRelay.parseMessages(json),
+        )
+    }
+
+    @Test
     fun `폰에서 열 주소는 스킴 없이`() {
         assertEquals("server-v2-production-8f97.up.railway.app/login", LoginRelay("https://server-v2-production-8f97.up.railway.app").phoneUrl)
     }

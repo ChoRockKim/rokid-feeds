@@ -378,6 +378,11 @@ fun ThreadsLoginScreen(
                 BasicText("인증 코드가 필요합니다 · 폰 화면에 코드를 넣으세요", style = Glass.Body, maxLines = 2)
                 BasicText(ui.label, style = Glass.BodySmall, maxLines = 1)
             }
+            is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Remote -> {
+                CodeBlock(ui.url, ui.code)
+                BasicText("폰 로그인 페이지에서 사람 확인을 풀어 주세요", style = Glass.Body, maxLines = 1)
+                BasicText("폰에 이 로그인 화면이 비칩니다 · 그림을 누르면 안경에서 눌립니다 · ${ui.why}", style = Glass.BodySmall, maxLines = 2)
+            }
             is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Done -> BasicText("로그인 완료 · 뒤로를 누르면 돌아갑니다", style = Glass.Body)
             is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Failed -> {
                 BasicText(ui.message, style = Glass.Body, maxLines = 3)

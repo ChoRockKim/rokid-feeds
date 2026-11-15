@@ -17,6 +17,11 @@ data class LoginResult(
     val redirect: String? = null,
     val profileSelector: Boolean = false,
 ) {
+    /** 사람이 직접 풀어야 하는 단계(캡차·본인 확인): 폰에 로그인 화면을 비추고 폰에서 조작한다. */
+    val needsPerson: Boolean
+        get() = !authenticated && !twoFactor && (captcha || errorCode in CAPTCHA_CODES ||
+            redirect?.let { "challenge" in it || "checkpoint" in it || "auth_platform" in it } == true)
+
     /** 실패 이유(한국어). 성공이거나 인증 코드 단계(앱이 따로 처리)면 null. */
     fun reason(): String? = when {
         authenticated || twoFactor -> null

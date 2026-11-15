@@ -15,6 +15,9 @@ class LoginResultTest {
         assertEquals("인스타 응답: 400 · bad", LoginResult.parse("""{"auth":false,"code":"400","msg":"bad"}""")!!.reason())
         assertTrue(LoginResult.parse("""{"auth":false,"code":null,"msg":null}""")!!.reason()!!.contains("이유 없음"))
         assertNull(LoginResult.parse("nope"))
+        assertTrue(LoginResult.parse("""{"auth":false,"code":"1348009"}""")!!.needsPerson)
+        assertTrue(LoginResult.parse("""{"auth":false,"redirect":"/challenge/x/"}""")!!.needsPerson)
+        assertTrue(!LoginResult.parse("""{"auth":false,"code":"400"}""")!!.needsPerson)
         assertTrue(LoginResult.parse("""{"auth":false,"code":"1348009","msg":"{\"title\":\"x\"}"}""")!!.reason()!!.contains("캡차"))
     }
 }

@@ -30,6 +30,8 @@ class ThreadsLoginFlow(
         data class Waiting(val url: String, val code: String, val error: String? = null) : Ui
         data class LoggingIn(val url: String, val code: String) : Ui
         data class NeedCode(val url: String, val code: String, val label: String) : Ui
+        /** 사람 확인(캡차·본인 확인): 폰 로그인 페이지에 이 로그인 화면이 비치고 폰에서 눌러 푼다. */
+        data class Remote(val url: String, val code: String, val why: String) : Ui
         data object Done : Ui
         data class Failed(val message: String) : Ui
     }
@@ -96,6 +98,8 @@ class ThreadsLoginFlow(
                         if (web.submitCode(m.text)) watch(session, url)
                         else { report(session, "error", "인증 코드 칸을 찾지 못했습니다"); ui = Ui.Waiting(url, session.code, "인증 코드 칸을 찾지 못했습니다") }
                     }
+                    // 폰 화면 조작은 사람 확인 중에만 쓴다(그 밖에는 버린다).
+                    is LoginRelay.Message.Tap, is LoginRelay.Message.Scroll, is LoginRelay.Message.Type -> Unit
                 }
                 if (ui == Ui.Done) return
             }
@@ -111,6 +115,11 @@ class ThreadsLoginFlow(
                 report(session, "done")
                 ui = Ui.Done
                 onLoggedIn(username)
+                return
+            }
+            // 사람만 풀 수 있는 단계(캡차·본인 확인)면 폰에서 직접 풀게 한다(안경 화면으로는 못 푼다).
+            web.lastLoginResult?.takeIf { it.needsPerson }?.let { r ->
+                remote(session, url, r.reason() ?: "사람 확인이 필요합니다")
                 return
             }
             // 서버가 실패 이유를 줬으면 그것을 보여 준다(화면 문구는 늘 "정보가 잘못"이라 진짜 이유를 알 수 없었다).
@@ -140,6 +149,62 @@ class ThreadsLoginFlow(
         ui = Ui.Waiting(url, session.code, "응답이 없습니다")
     }
 
+    /**
+     * 폰에서 조작하기: 숨은 로그인 화면을 [SHOT_MS]마다 JPEG로 폰 페이지에 비추고, 폰에서 누른 자리·끌기·글자를 그대로
+     * 넣는다. 로그인 쿠키가 생기면 끝, [REMOTE_MS]가 지나면 처음(기다림)으로. 안경 띠에는 안내만 보인다.
+     */
+    private suspend fun remote(session: LoginRelay.Session, url: String, why: String) {
+        report(session, "captcha", why)
+        ui = Ui.Remote(url, session.code, why)
+        web.setRemote(true)
+        try {
+            val until = System.currentTimeMillis() + REMOTE_MS
+            var nextShot = 0L
+            var seen = web.lastLoginResult
+            while (coroutineContext.isActive && System.currentTimeMillis() < until) {
+                if (web.isLoggedIn()) {
+                    report(session, "done")
+                    ui = Ui.Done
+                    onLoggedIn(username)
+                    return
+                }
+                if (System.currentTimeMillis() >= nextShot) {
+                    web.captureJpeg()?.let { jpeg ->
+                        runCatching { relay.screen(session, jpeg) }.onFailure { e ->
+                            if (e is LoginRelay.ExpiredException) { ui = Ui.Failed("코드가 만료됐습니다 · 탭하면 새 코드"); return }
+                        }
+                    }
+                    nextShot = System.currentTimeMillis() + SHOT_MS
+                }
+                val messages = runCatching { relay.poll(session) }.getOrElse { e ->
+                    if (e is LoginRelay.ExpiredException) { ui = Ui.Failed("코드가 만료됐습니다 · 탭하면 새 코드"); return }
+                    emptyList()
+                }
+                for (m in messages) when (m) {
+                    is LoginRelay.Message.Tap -> web.tap(m.x, m.y)
+                    is LoginRelay.Message.Scroll -> web.drag(m.dy)
+                    is LoginRelay.Message.Type -> web.typeText(m.text)
+                    is LoginRelay.Message.Code -> web.submitCode(m.text)
+                    is LoginRelay.Message.Credentials -> { username = m.username.trim(); web.submitLogin(m.username.trim(), m.password) }
+                }
+                // 누른 뒤 페이지가 바뀔 시간을 조금 주고 바로 새 그림을 보낸다.
+                if (messages.isNotEmpty()) nextShot = System.currentTimeMillis() + AFTER_INPUT_MS
+                // 사람 확인을 푼 뒤 사이트가 다시 로그인을 시도하면 새 결과가 온다: 다른 이유로 실패하면 폰에 알린다.
+                val r = web.lastLoginResult
+                if (r != null && r !== seen) {
+                    seen = r
+                    if (!r.authenticated && !r.needsPerson) r.reason()?.let { report(session, "captcha", it) }
+                }
+                delay(REMOTE_TICK_MS)
+            }
+            report(session, "error", "사람 확인 시간이 지났습니다 · 다시 보내 주세요")
+            web.openLogin()
+            ui = Ui.Waiting(url, session.code, "사람 확인 시간이 지났습니다")
+        } finally {
+            web.setRemote(false)
+        }
+    }
+
     private suspend fun report(session: LoginRelay.Session, state: String, message: String = "") {
         runCatching { relay.status(session, state, message) }
     }
@@ -150,5 +215,10 @@ class ThreadsLoginFlow(
         const val RETRY_AFTER_MS = 3_000L
         const val WATCH_MS = 1_500L
         const val WATCH_STEPS = 16
+        /** 폰에서 조작: 그림 간격, 입력 뒤 새 그림까지, 받기 간격, 최대 시간(중계 세션 15분 안). */
+        const val SHOT_MS = 1_000L
+        const val AFTER_INPUT_MS = 500L
+        const val REMOTE_TICK_MS = 300L
+        const val REMOTE_MS = 10 * 60 * 1000L
     }
 }

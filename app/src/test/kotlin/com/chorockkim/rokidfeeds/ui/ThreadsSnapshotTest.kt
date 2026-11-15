@@ -205,6 +205,11 @@ class ThreadsSnapshotTest {
     fun threads_login_waking() = shot { ThreadsLoginScreen(com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Starting(waking = true)) }
 
     @Test
+    fun login_remote() = shot {
+        ThreadsLoginScreen(com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Remote("server-v2-production-8f97.up.railway.app/login", "482913", "인스타가 로봇 확인(캡차)을 요구해 로그인을 막았습니다"), title = "Instagram 로그인 · 폰에서", backHint = "뒤로: 스토리")
+    }
+
+    @Test
     fun threads_login_needCode() = shot {
         ThreadsLoginScreen(com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.NeedCode("server-v2-production-8f97.up.railway.app/login", "482913", "보안 코드"))
     }

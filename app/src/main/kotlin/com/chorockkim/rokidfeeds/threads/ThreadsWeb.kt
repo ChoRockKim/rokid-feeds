@@ -216,6 +216,89 @@ class ThreadsWeb(
         cookies.removeAllCookies { done() }
     }
 
+    // region 폰에서 조작(사람 확인·캡차) — 로그인 WebView([feed])를 폰에 비추고 폰의 탭·끌기·글자를 넣는다.
+
+    private var remoteParams: android.view.ViewGroup.LayoutParams? = null
+
+    /**
+     * 폰에서 조작하는 동안은 로그인 페이지를 세로로 길게(안경 화면 높이 전체) 펼쳐 캡차가 한 화면에 들어오게 한다.
+     * 여전히 Compose 화면 뒤라 안경에는 보이지 않는다(밝은 페이지가 앞을 가리지 않게).
+     */
+    fun setRemote(on: Boolean) {
+        val parent = feed.parent as? android.view.View ?: return
+        if (on && remoteParams == null) {
+            remoteParams = feed.layoutParams
+            feed.layoutParams = android.widget.FrameLayout.LayoutParams(feed.width.coerceAtLeast(1), parent.height.coerceAtLeast(feed.height), android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL)
+        } else if (!on) {
+            remoteParams?.let { feed.layoutParams = it }
+            remoteParams = null
+        }
+    }
+
+    /** 로그인 페이지를 JPEG로(메인 스레드에서 그리고, 압축은 다른 스레드). 그릴 수 없으면 null. */
+    suspend fun captureJpeg(): ByteArray? {
+        val w = feed.width
+        val h = feed.height
+        if (w <= 0 || h <= 0) return null
+        val bitmap = runCatching {
+            android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888).also { feed.draw(android.graphics.Canvas(it)) }
+        }.getOrNull() ?: return null
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            val scaled = if (w > REMOTE_MAX_WIDTH) android.graphics.Bitmap.createScaledBitmap(bitmap, REMOTE_MAX_WIDTH, h * REMOTE_MAX_WIDTH / w, true) else bitmap
+            val out = java.io.ByteArrayOutputStream()
+            scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, REMOTE_JPEG_QUALITY, out)
+            if (scaled !== bitmap) scaled.recycle()
+            bitmap.recycle()
+            out.toByteArray()
+        }
+    }
+
+    /** 그림 크기에 대한 자리(0..1)를 손가락으로 누른 것처럼. */
+    fun tap(x: Float, y: Float) {
+        val px = x * feed.width
+        val py = y * feed.height
+        val t = android.os.SystemClock.uptimeMillis()
+        touch(t, t, android.view.MotionEvent.ACTION_DOWN, px, py)
+        touch(t, t + TAP_MS, android.view.MotionEvent.ACTION_UP, px, py)
+    }
+
+    /** 위(-)·아래(+)로 화면 높이의 [dy]만큼 손가락으로 끈다(페이지·캡차 안 목록 모두). */
+    fun drag(dy: Float) {
+        val x = feed.width / 2f
+        val from = feed.height * 0.6f
+        val to = from - dy * feed.height * 0.5f
+        val t = android.os.SystemClock.uptimeMillis()
+        touch(t, t, android.view.MotionEvent.ACTION_DOWN, x, from)
+        for (i in 1..DRAG_STEPS) touch(t, t + i * 16L, android.view.MotionEvent.ACTION_MOVE, x, from + (to - from) * i / DRAG_STEPS)
+        touch(t, t + (DRAG_STEPS + 1) * 16L, android.view.MotionEvent.ACTION_UP, x, to)
+    }
+
+    private fun touch(down: Long, at: Long, action: Int, x: Float, y: Float) {
+        val e = android.view.MotionEvent.obtain(down, at, action, x, y, 0)
+        e.source = android.view.InputDevice.SOURCE_TOUCHSCREEN
+        feed.dispatchTouchEvent(e)
+        e.recycle()
+    }
+
+    /**
+     * 지금 선택된 칸에 글자를 넣는다. 같은 문서의 칸이면 페이지 스크립트로(값 setter + input 이벤트), 다른 출처의
+     * 틀(캡차 iframe) 안이라 스크립트가 못 넣으면 키 입력으로 보낸다.
+     */
+    suspend fun typeText(text: String) {
+        val done = eval(
+            "(function(t){var e=document.activeElement;if(!e||!('value' in e)||e.tagName==='IFRAME')return false;" +
+                "var p=e.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;" +
+                "Object.getOwnPropertyDescriptor(p,'value').set.call(e,(e.value||'')+t);" +
+                "e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));return true})(" +
+                JSONObject.quote(text) + ")",
+        )
+        if (done == "true") return
+        val map = android.view.KeyCharacterMap.load(android.view.KeyCharacterMap.VIRTUAL_KEYBOARD)
+        map.getEvents(text.toCharArray())?.forEach { feed.dispatchKeyEvent(it) }
+    }
+
+    // endregion
+
     fun destroy() {
         feed.destroy()
         post.destroy()
@@ -276,6 +359,11 @@ class ThreadsWeb(
         }
 
         const val HOME = "https://www.threads.com/"
+        /** 폰에 보내는 그림 폭 상한(px)과 JPEG 품질: 한 장 수십 kB(서버 상한 400 kB). */
+        private const val REMOTE_MAX_WIDTH = 720
+        private const val REMOTE_JPEG_QUALITY = 60
+        private const val TAP_MS = 60L
+        private const val DRAG_STEPS = 8
         private const val LOGIN_TRIES = 5
         private const val LOGIN_RETRY_MS = 1_500L
         private const val LOGIN_RELOAD_WAIT_MS = 5_000L

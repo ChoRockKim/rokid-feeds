@@ -17,6 +17,12 @@ class LoginRelay(private val base: String) {
     sealed interface Message {
         data class Credentials(val username: String, val password: String) : Message
         data class Code(val text: String) : Message
+        /** 폰이 안경 화면 그림에서 누른 자리(그림 크기에 대한 0..1). 사람 확인(캡차)을 폰에서 풀 때. */
+        data class Tap(val x: Float, val y: Float) : Message
+        /** 위(-)·아래(+)로 그림 높이의 [dy]만큼 끌기. */
+        data class Scroll(val dy: Float) : Message
+        /** 지금 선택된 칸에 글자 넣기. */
+        data class Type(val text: String) : Message
     }
 
     /** 폰에서 열 주소(스킴 없이 보여 준다: 안경 화면에서 읽고 폰에 치기 쉽게). */
@@ -31,13 +37,22 @@ class LoginRelay(private val base: String) {
         parseMessages(request("GET", "/relay/poll", session.secret, null))
     }
 
-    /** 폰 페이지에 보여 줄 상태: waiting, logging_in, need_code, done, error. */
+    /** 사람 확인 중(상태 captcha)일 때 숨은 로그인 화면을 JPEG로 폰에 보낸다(서버는 최신 한 장만 메모리에 둔다). */
+    suspend fun screen(session: Session, jpeg: ByteArray) = withContext(Dispatchers.IO) {
+        request("POST", "/relay/screen", session.secret, jpeg, "image/jpeg")
+        Unit
+    }
+
+    /** 폰 페이지에 보여 줄 상태: waiting, logging_in, need_code, captcha, done, error. */
     suspend fun status(session: Session, state: String, message: String = "") = withContext(Dispatchers.IO) {
         request("POST", "/relay/status", session.secret, JSONObject().put("state", state).put("message", message).toString())
         Unit
     }
 
-    private fun request(method: String, path: String, secret: String?, body: String?): String {
+    private fun request(method: String, path: String, secret: String?, body: String?): String =
+        request(method, path, secret, body?.toByteArray(), "application/json")
+
+    private fun request(method: String, path: String, secret: String?, body: ByteArray?, type: String): String {
         val c = URL(base + path).openConnection() as HttpURLConnection
         try {
             c.requestMethod = method
@@ -47,8 +62,8 @@ class LoginRelay(private val base: String) {
             secret?.let { c.setRequestProperty("Authorization", "Bearer $it") }
             if (body != null) {
                 c.doOutput = true
-                c.setRequestProperty("Content-Type", "application/json")
-                c.outputStream.use { it.write(body.toByteArray()) }
+                c.setRequestProperty("Content-Type", type)
+                c.outputStream.use { it.write(body) }
             }
             val code = c.responseCode
             if (code == 401) throw ExpiredException()
@@ -71,6 +86,13 @@ class LoginRelay(private val base: String) {
                     "credentials" -> Message.Credentials(m.optString("username"), m.optString("password"))
                         .takeIf { it.username.isNotEmpty() && it.password.isNotEmpty() }
                     "code" -> m.optString("text").takeIf { it.isNotEmpty() }?.let { Message.Code(it) }
+                    "tap" -> {
+                        val x = m.optDouble("x", Double.NaN).toFloat()
+                        val y = m.optDouble("y", Double.NaN).toFloat()
+                        if (x in 0f..1f && y in 0f..1f) Message.Tap(x, y) else null
+                    }
+                    "scroll" -> m.optDouble("dy", Double.NaN).toFloat().takeIf { !it.isNaN() }?.let { Message.Scroll(it.coerceIn(-1f, 1f)) }
+                    "type" -> m.optString("text").takeIf { it.isNotEmpty() }?.let { Message.Type(it) }
                     else -> null
                 }
             }
