@@ -11,7 +11,8 @@ class ThreadsCacheTest {
     private val cache = ThreadsCache(dir) { now }
 
     private val post = ThreadPost("1", "A1", "alice", "본문", 1800000000, likeCount = 3, replyCount = 2,
-        images = listOf("https://x/1"), thumbs = listOf("https://x/t1"), hasVideo = true, avatar = null)
+        images = listOf("https://x/1"), thumbs = listOf("https://x/t1"), hasVideo = true, avatar = null, videos = listOf(true),
+        repostedBy = "carol", quoted = ThreadPost("5", "Q", "dave", "인용", 1799999000, images = listOf("https://x/q")))
     private val item = ThreadItem(post, listOf(post.copy(pk = "2", code = "A2", text = "이어서")))
 
     @Test

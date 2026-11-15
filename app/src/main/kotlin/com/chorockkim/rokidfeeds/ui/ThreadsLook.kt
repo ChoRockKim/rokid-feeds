@@ -187,6 +187,7 @@ fun PostBlock(
         Avatar(post, avatarSize)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            post.repostedBy?.let { RepostLine(it) }
             NameLine(post, now, extra = if (!actions && post.likeCount > 0) "좋아요 ${compactCount(post.likeCount)}" else null)
             val text = stripEmoji(post.text)
             if (text.isNotEmpty()) {
@@ -196,8 +197,9 @@ fun PostBlock(
             }
             if (post.images.isNotEmpty()) {
                 // 사진을 받기 전에도 같은 자리에 빈 사진 칸을 그려 모양이 다른 글·댓글과 같게 한다.
-                ThumbRow(post.thumbs.ifEmpty { post.images }, if (thumbs) image else NoImage, height = thumbHeight)
+                ThumbRow(post.thumbs.ifEmpty { post.images }, if (thumbs) image else NoImage, height = thumbHeight, videos = post.videos)
             } else if (post.hasVideo) BasicText("동영상", style = ThreadsText.Time)
+            post.quoted?.let { QuoteBox(it, now) }
             note?.let { BasicText(it, style = ThreadsText.Time) }
             if (actions) ActionRow(post, Modifier.padding(top = 2.dp))
         }
@@ -207,17 +209,67 @@ fun PostBlock(
 /** 사진을 받지 않을 때(빈 칸만). */
 val NoImage: ImageSource = { ImageState(null, false) }
 
-/** 사진 작은 줄(최대 3장, 둥근 모서리, 녹색 단색). */
+/** 퍼온 글 표시: "↻ 아무개 님이 리포스트" (Threads 앱처럼 이름 줄 위 작은 줄). */
 @Composable
-fun ThumbRow(urls: List<String>, image: ImageSource, height: Dp = 64.dp) {
+fun RepostLine(by: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        ThreadIcon(ThreadIconKind.Repost, size = 12.dp)
+        BasicText("  $by 님이 리포스트", style = ThreadsText.Time, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** 인용한 글: 테두리 상자 안에 작성자와 본문 두 줄(사진·동영상이 있으면 그 수). 상세에서는 다음 쪽에 전체가 나온다. */
+@Composable
+fun QuoteBox(post: ThreadPost, now: Long, lines: Int = 2) {
+    Column(
+        Modifier.fillMaxWidth().border(1.dp, Glass.Primary40, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 5.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        NameLine(post, now)
+        val text = stripEmoji(post.text)
+        if (text.isNotEmpty()) BasicText(text, style = ThreadsText.Time, maxLines = lines, overflow = TextOverflow.Ellipsis)
+        val media = mediaLabel(post)
+        if (media != null) BasicText(media, style = ThreadsText.Time)
+    }
+}
+
+/** "사진 2장 · 동영상 1개" (없으면 null). */
+fun mediaLabel(post: ThreadPost): String? {
+    val videos = post.images.indices.count { post.videos.getOrElse(it) { false } }
+    val photos = post.images.size - videos
+    return listOfNotNull(
+        "사진 ${photos}장".takeIf { photos > 0 },
+        "동영상 ${videos.coerceAtLeast(if (post.hasVideo) 1 else 0)}개".takeIf { videos > 0 || (post.hasVideo && post.images.isEmpty()) },
+    ).joinToString(" · ").ifEmpty { null }
+}
+
+/** 동영상 표시: 반투명 원 안의 재생 삼각형(녹색 선). */
+@Composable
+fun PlayBadge(size: Dp = 22.dp) {
+    val color = Glass.Primary
+    Canvas(Modifier.size(size)) {
+        drawCircle(Color.Black.copy(alpha = 0.6f))
+        drawCircle(color, style = Stroke(width = 1.5.dp.toPx()))
+        val w = this.size.width
+        val path = Path().apply {
+            moveTo(w * 0.40f, w * 0.30f); lineTo(w * 0.72f, w * 0.50f); lineTo(w * 0.40f, w * 0.70f); close()
+        }
+        drawPath(path, color)
+    }
+}
+
+/** 사진 작은 줄(최대 3장, 둥근 모서리, 녹색 단색). [videos]에 해당하는 칸에는 재생 표시를 얹는다. */
+@Composable
+fun ThumbRow(urls: List<String>, image: ImageSource, height: Dp = 64.dp, videos: List<Boolean> = emptyList()) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        urls.take(3).forEach { url ->
+        urls.take(3).forEachIndexed { i, url ->
             Box(
                 Modifier.size(width = height * 1.25f, height = height).clip(RoundedCornerShape(8.dp)).border(1.dp, Glass.Primary40, RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center,
             ) {
                 val bitmap = image(url).image
                 if (bitmap != null) Image(bitmap, null, contentScale = ContentScale.Crop, colorFilter = ThreadImages.GreenFilter, modifier = Modifier.fillMaxHeight().fillMaxWidth())
+                if (videos.getOrElse(i) { false }) PlayBadge()
             }
         }
         if (urls.size > 3) BasicText("+${urls.size - 3}", style = ThreadsText.Time, modifier = Modifier.align(Alignment.CenterVertically))

@@ -86,7 +86,7 @@ fun ThreadsFeedScreen(
             ErrorView(
                 title = if (loading) "불러오는 중…" else "글을 불러오지 못했습니다",
                 message = if (loggedIn) "잠시 뒤 다시 시도해 주세요" else "로그인하지 않으면 일부 글만 보입니다 · 설정에서 로그인",
-                hint = if (loading) "뒤로: 메뉴" else "탭: 다시 시도 · 뒤로: 메뉴",
+                hint = if (loading) "뒤로: 종료" else "탭: 다시 시도 · 뒤로: 종료",
             )
         }
         return
@@ -112,7 +112,7 @@ fun ThreadsFeedScreen(
                         now = now,
                         image = image,
                         // 고른 글은 띠 높이에 맞춰: 사진 줄이 있으면 4줄, 없으면 7줄(넘치면 "… 탭하면 전체"). 나머지는 2줄.
-                        maxLines = if (!selected) 2 else if (item.head.images.isNotEmpty()) FEED_LINES_WITH_PHOTOS else FEED_LINES_TEXT_ONLY,
+                        maxLines = if (!selected) 2 else if (item.head.images.isNotEmpty() || item.head.quoted != null) FEED_LINES_WITH_PHOTOS else FEED_LINES_TEXT_ONLY,
                         moreHint = selected,
                         thumbHeight = 56.dp,
                         threadLine = item.continuation.isNotEmpty(),
@@ -127,7 +127,7 @@ fun ThreadsFeedScreen(
         val tail = when {
             loading -> " · 더 불러오는 중…"
             atEnd && selectedIndex == items.lastIndex -> " · 마지막 글입니다"
-            else -> " · 뒤로 메뉴"
+            else -> " · 뒤로 종료"
         }
         BasicText("◀ ▶ 이동 · 탭 열기$tail", style = Glass.Caption, maxLines = 1)
     }
@@ -158,7 +158,19 @@ fun ThreadPostScreen(
 ) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Column(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (page.header && page.part > 0) {
+            if (page.header && page.quote) {
+                // 앞 글이 인용한 다른 사람 글.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.width(2.dp).height(16.dp).background(Glass.Primary40))
+                    Spacer(Modifier.width(8.dp))
+                    BasicText("인용한 글", style = ThreadsText.Time)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Avatar(page.post, 26.dp)
+                    Spacer(Modifier.width(10.dp))
+                    NameLine(page.post, now)
+                }
+            } else if (page.header && page.part > 0) {
                 // 작성자가 이어 쓴 글: 새 글처럼 보이지 않게 작은 표시만(같은 스레드의 다음 칸).
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.width(2.dp).height(16.dp).background(Glass.Primary40))
@@ -166,6 +178,7 @@ fun ThreadPostScreen(
                     BasicText("이어서 ${page.part + 1}/${page.parts} · @${page.post.author}", style = ThreadsText.Time)
                 }
             } else if (page.header) {
+                page.post.repostedBy?.let { RepostLine(it) }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Avatar(page.post, 30.dp)
                     Spacer(Modifier.width(10.dp))
@@ -178,13 +191,13 @@ fun ThreadPostScreen(
             }
             if (page.thumbs.isNotEmpty()) {
                 Box(Modifier.weight(1f, fill = false)) {
-                    ThumbRow(page.thumbs, image, height = if (page.body.isBlank()) 120.dp else 56.dp)
+                    ThumbRow(page.thumbs, image, height = if (page.body.isBlank()) 120.dp else 56.dp, videos = page.videos)
                 }
             }
             if (page.actions) ActionRow(page.post)
         }
         val next = if (pageIndex < pageCount - 1) "▼ 다음" else if (comments > 0) "▼ 댓글 $comments" else "▼ 끝"
-        val tap = if (page.photos.isNotEmpty()) "탭 사진 ${page.photos.size}장" else "탭 다음"
+        val tap = if (page.photos.isNotEmpty()) "탭 " + (mediaLabel(page.post.copy(images = page.photos, videos = page.videos)) ?: "사진") else "탭 다음"
         Footer("◀ ▶ 위아래 · $next · $tap · 뒤로 " + if (depth > 1) "이전 글" else "목록", "${pageIndex + 1}/$pageCount")
     }
 }
@@ -198,6 +211,8 @@ fun ThreadPhotoScreen(
     total: Int,
     image: ImageSource = { rememberThreadImage(it) },
     tall: Boolean = false,
+    /** 동영상의 미리보기 사진(재생은 안 함). */
+    video: Boolean = false,
 ) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
@@ -208,8 +223,9 @@ fun ThreadPhotoScreen(
                 state.failed -> BasicText("사진을 불러오지 못했습니다", style = Glass.BodySmall)
                 else -> BasicText("사진 불러오는 중…", style = Glass.BodySmall)
             }
+            if (video) PlayBadge(44.dp)
         }
-        Footer("@${post.author} · ◀ ▶ 다른 사진" + (if (tall) " · 탭 확대" else "") + " · 뒤로 글", "${index + 1}/$total")
+        Footer("@${post.author}" + (if (video) " · 동영상(미리보기)" else "") + " · ◀ ▶ 다른 사진" + (if (tall) " · 탭 확대" else "") + " · 뒤로 글", "${index + 1}/$total")
     }
 }
 
@@ -351,7 +367,7 @@ fun ThreadsLoginScreen(ui: com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui
                 BasicText("인증 코드가 필요합니다 · 폰 화면에 코드를 넣으세요", style = Glass.Body, maxLines = 2)
                 BasicText(ui.label, style = Glass.BodySmall, maxLines = 1)
             }
-            is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Done -> BasicText("로그인 완료 · 뒤로를 누르면 메뉴로 갑니다", style = Glass.Body)
+            is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Done -> BasicText("로그인 완료 · 뒤로를 누르면 설정으로 갑니다", style = Glass.Body)
             is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Failed -> {
                 BasicText(ui.message, style = Glass.Body, maxLines = 3)
                 BasicText("탭: 다시 시도", style = Glass.Label)

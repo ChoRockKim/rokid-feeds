@@ -90,7 +90,7 @@ fun NewsApp(keys: Flow<NavKey>, online: Boolean, onBack: () -> Unit, api: NewsAp
         )
         articles.isNotEmpty() -> FeedScreen(feed = loaded!!, selectedIndex = shown.selected)
         feed is Load.Loading -> LoadingView()
-        !online -> ErrorView("인터넷 연결 없음", "Wi-Fi가 연결되면 자동으로 다시 불러옵니다", hint = "뒤로: 메뉴")
+        !online -> ErrorView("인터넷 연결 없음", "Wi-Fi가 연결되면 자동으로 다시 불러옵니다", hint = "뒤로: 종료")
         feed is Load.Failure -> ErrorView("불러오지 못했습니다", (feed as Load.Failure).message)
         else -> ErrorView("표시할 기사가 없습니다", "잠시 뒤 다시 시도해 주세요")
     }

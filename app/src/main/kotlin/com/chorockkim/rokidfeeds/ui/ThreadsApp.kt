@@ -113,7 +113,7 @@ fun ThreadsApp(session: ThreadsSession, keys: Flow<NavKey>, onBack: () -> Unit, 
                 comments = if (comments.isNotEmpty()) comments.size else top.item.head.replyCount,
                 depth = stack.size,
             )
-            Mode.Photos -> ThreadPhotoScreen(page.post, page.photos[s.photo], s.photo, page.photos.size, tall = page.tall.getOrElse(s.photo) { false })
+            Mode.Photos -> ThreadPhotoScreen(page.post, page.photos[s.photo], s.photo, page.photos.size, tall = page.tall.getOrElse(s.photo) { false }, video = page.videos.getOrElse(s.photo) { false })
             Mode.Zoom -> ThreadPhotoZoomScreen(page.photos[s.photo], s.part)
             Mode.Comments -> ThreadCommentsScreen(
                 comments = comments,

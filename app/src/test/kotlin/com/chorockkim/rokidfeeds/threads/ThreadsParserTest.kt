@@ -93,4 +93,43 @@ class ThreadsParserTest {
         val p = ThreadsParser.items("""{"thread_items":[{"post":${post("1", "A", "a", "t", carousel)}}]}""").single().head
         assertEquals(listOf(true, false, true, false, true), p.tall)
     }
+
+    @Test
+    fun `퍼온 글은 원글을 보여 주고 퍼온 사람을 적는다`() {
+        // 2026-11-15 확인한 모양: 목록 줄의 글은 퍼온 사람 것(본문 없음), 원글은 share_info.reposted_post에 통째로.
+        val original = post("9", "ORIG", "writer", "원글 본문", image)
+        val repost = """{"pk":"8","code":"RP","taken_at":1800000100,"user":{"pk":"ur","username":"reposter"},"caption":null,
+            "text_post_app_info":{"direct_reply_count":0,"share_info":{"quoted_post":null,"reposted_post":$original}}}"""
+        val p = ThreadsParser.items("""{"thread_items":[{"post":$repost}]}""").single().head
+        assertEquals("ORIG", p.code)
+        assertEquals("writer", p.author)
+        assertEquals("원글 본문", p.text)
+        assertEquals("reposter", p.repostedBy)
+        assertEquals(listOf("https://cdn.example/mid.webp"), p.images)
+    }
+
+    @Test
+    fun `인용한 글은 quoted로, 인용 안의 인용은 한 단계까지만`() {
+        val inner = post("7", "Q2", "deep", "더 안쪽")
+        val quoted = post("6", "Q1", "other", "인용된 글", image, info = ""","share_info":{"quoted_post":$inner,"reposted_post":null}""")
+        val p = ThreadsParser.items("""{"thread_items":[{"post":${post("5", "M", "me", "내 생각", info = ""","share_info":{"quoted_post":$quoted,"reposted_post":null}""")}}]}""").single().head
+        assertEquals("내 생각", p.text)
+        assertEquals("Q1", p.quoted?.code)
+        assertEquals("other", p.quoted?.author)
+        assertEquals(1, p.quoted?.images?.size)
+        assertNull(p.quoted?.quoted)
+        assertNull(p.repostedBy)
+    }
+
+    @Test
+    fun `동영상은 사진마다 표시한다(media_type 2)`() {
+        val carousel = ""","carousel_media":[
+            {"media_type":1,"image_versions2":{"candidates":[{"url":"https://cdn.example/p.webp","width":720}]}},
+            {"media_type":2,"video_versions":[{"url":"https://cdn.example/v.mp4"}],"image_versions2":{"candidates":[{"url":"https://cdn.example/v.webp","width":720}]}}]"""
+        val p = ThreadsParser.items("""{"thread_items":[{"post":${post("1", "A", "a", "t", carousel)}}]}""").single().head
+        assertEquals(listOf(false, true), p.videos)
+        assertTrue(p.hasVideo)
+        val single = ThreadsParser.items("""{"thread_items":[{"post":${post("2", "B", "b", "t", ""","media_type":2,"video_versions":[{"url":"x"}]""" + image)}}]}""").single().head
+        assertEquals(listOf(true), single.videos)
+    }
 }

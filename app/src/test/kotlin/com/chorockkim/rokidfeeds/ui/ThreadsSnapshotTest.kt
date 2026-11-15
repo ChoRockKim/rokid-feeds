@@ -75,6 +75,25 @@ class ThreadsSnapshotTest {
         ThreadsFeedScreen(listOf(ThreadItem(long)) + items, selectedIndex = 0, loading = false, loggedIn = true, now = now, image = fakePhoto, lazyThumbs = false)
     }
 
+    private val quotedPost = ThreadPost("31", "QQ", "quoted.writer", "[예시] 인용된 다른 사람 글입니다. 상세에서 다음 쪽에 전체가 나옵니다.", now - 5000, images = listOf("q1", "q2"), videos = listOf(false, true))
+    private val reposted = ThreadItem(ThreadPost("30", "RP", "original.writer", "[예시] 다른 사람이 퍼온 원글입니다.", now - 4000, likeCount = 52, replyCount = 2, images = listOf("v1", "p2"), videos = listOf(true, false), hasVideo = true, repostedBy = "my.friend"))
+    private val quoting = ThreadItem(ThreadPost("32", "QT", "quoting.user", "[예시] 이 글에 대한 내 생각입니다.", now - 3000, likeCount = 3, quoted = quotedPost))
+
+    @Test
+    fun threads_feed_repost_video() = shot { ThreadsFeedScreen(listOf(reposted) + items, selectedIndex = 0, loading = false, loggedIn = true, now = now, image = fakePhoto, lazyThumbs = false) }
+
+    @Test
+    fun threads_feed_quote() = shot { ThreadsFeedScreen(listOf(quoting) + items, selectedIndex = 0, loading = false, loggedIn = true, now = now, image = fakePhoto, lazyThumbs = false) }
+
+    @Test
+    fun threads_post_quotePage() = shot {
+        val p = buildPostPages(quoting, null)
+        ThreadPostScreen(p[1], 1, p.size, comments = 0, now = now, image = fakePhoto)
+    }
+
+    @Test
+    fun threads_photo_video() = shot { ThreadPhotoScreen(reposted.head, "v1", 0, 2, image = fakePhoto, video = true) }
+
     @Test
     fun threads_empty_notLoggedIn() = shot { ThreadsFeedScreen(emptyList(), selectedIndex = 0, loading = false, loggedIn = false, now = now) }
 

@@ -20,6 +20,10 @@ data class PostPage(
     /** 작성자가 이어 쓴 글이면 몇 번째(1부터, 본문은 0)와 전체 수. 화면에 "이어서 2/3"으로 보여 다른 글처럼 보이지 않게 한다. */
     val part: Int = 0,
     val parts: Int = 1,
+    /** [photos]마다 동영상인지(미리보기만). */
+    val videos: List<Boolean> = emptyList(),
+    /** 앞 글이 인용한 다른 사람 글의 쪽(인용 표시를 붙여 그 글의 사진도 탭으로 본다). */
+    val quote: Boolean = false,
 )
 
 /** 작성자 줄이 있는 첫 쪽 / 나머지 쪽의 글자 수. */
@@ -51,9 +55,14 @@ val CharSplitter: TextSplitter = { text, withPhotos ->
 }
 
 fun buildPostPages(item: ThreadItem, detail: ThreadDetail?, split: TextSplitter = CharSplitter): List<PostPage> {
-    val main = detail?.main ?: item.head
+    // 상세(글 페이지)의 본문은 원글이라 목록에서 알던 "누가 퍼왔는지"가 없다: 목록 글에서 가져온다.
+    val main = (detail?.main ?: item.head).let { it.copy(repostedBy = it.repostedBy ?: item.head.repostedBy, quoted = it.quoted ?: item.head.quoted) }
     val posts = listOf(main) + (detail?.continuation ?: item.continuation).filter { it.author == main.author }
-    return posts.flatMapIndexed { i, post -> pagesOf(post, split).map { it.copy(part = i, parts = posts.size) } }
+    return posts.flatMapIndexed { i, post ->
+        // 인용한 글은 그 글 바로 뒤 쪽으로(사진도 그 쪽에서 탭으로 본다).
+        val quote = post.quoted?.let { q -> pagesOf(q, split).map { it.copy(quote = true, actions = false) } }.orEmpty()
+        (pagesOf(post, split) + quote).map { it.copy(part = i, parts = posts.size) }
+    }
 }
 
 private fun pagesOf(post: ThreadPost, split: TextSplitter): List<PostPage> {
@@ -61,9 +70,10 @@ private fun pagesOf(post: ThreadPost, split: TextSplitter): List<PostPage> {
     val photos = post.images.take(MAX_IMAGES_PER_POST)
     val thumbs = post.thumbs.ifEmpty { post.images }.take(MAX_IMAGES_PER_POST)
     val tall = photos.indices.map { post.tall.getOrElse(it) { false } }
+    val videos = photos.indices.map { post.videos.getOrElse(it) { false } }
     val chunks = if (text.isBlank()) listOf("") else split(text, photos.isNotEmpty()).ifEmpty { listOf(text) }
     val pages = chunks.mapIndexed { i, body ->
-        PostPage(post, body, header = i == 0, photos = photos, thumbs = if (i == 0) thumbs else emptyList(), tall = tall)
+        PostPage(post, body, header = i == 0, photos = photos, thumbs = if (i == 0) thumbs else emptyList(), tall = tall, videos = videos)
     }.toMutableList()
     if (photos.isEmpty() && text.isBlank()) {
         pages[0] = pages[0].copy(body = if (post.hasVideo) "(동영상)" else "(내용 없음)")

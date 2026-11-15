@@ -12,7 +12,10 @@ import org.json.JSONTokener
  * - 글 페이지: `data.media`(본문), `media.text_post_app_info.self_thread.posts.edges[].node`(작성자가 이어 쓴 글),
  *   `media.text_post_app_info.direct_replies.edges[].node.posts.edges[].node`(댓글). `relatedPosts`는 관련 글이라 뺀다.
  * - 글: `pk`, `code`, `taken_at`, `user.username`, `user.profile_pic_url`, `caption.text`, `like_count`, `text_post_app_info.direct_reply_count`,
- *   사진 `image_versions2.candidates[].url/width`, 여러 장 `carousel_media[]`, 동영상 `video_versions`.
+ *   사진 `image_versions2.candidates[].url/width`, 여러 장 `carousel_media[]`, 동영상 `video_versions`·`media_type` 2.
+ * - 퍼온 글(리포스트, 2026-11-15 확인): 목록 줄의 글이 퍼온 사람 것이고 본문(caption)이 비어 있으며, 원글이 통째로
+ *   `text_post_app_info.share_info.reposted_post`에 있다 → 원글을 보여 주고 [ThreadPost.repostedBy]에 퍼온 사람.
+ * - 인용 글(2026-11-15 확인): `share_info.quoted_post`에 인용한 원글이 통째로 있다 → [ThreadPost.quoted].
  * 구조가 바뀌면 빈 결과가 나올 뿐 앱이 죽지는 않는다.
  */
 object ThreadsParser {
@@ -93,17 +96,24 @@ object ThreadsParser {
     private fun isPost(o: JSONObject): Boolean =
         o.has("pk") && o.has("code") && o.has("taken_at") && o.optJSONObject("user")?.has("username") == true
 
-    /** 글 객체 → [ThreadPost]. 필수 필드가 없으면 null. */
-    fun post(o: JSONObject): ThreadPost? {
+    /** 글 객체 → [ThreadPost]. 필수 필드가 없으면 null. [depth]는 인용 안의 인용을 한 단계까지만 보려고. */
+    fun post(o: JSONObject, depth: Int = 0): ThreadPost? {
         if (!isPost(o)) return null
         val info = o.optJSONObject("text_post_app_info")
+        val share = info?.optJSONObject("share_info")
+        // 퍼온 글: 원글을 보여 주고 퍼온 사람만 적는다(퍼온 사람 글에는 본문이 없다).
+        share?.optJSONObject("reposted_post")?.takeIf { depth == 0 && isPost(it) }?.let { original ->
+            post(original, depth + 1)?.let { return it.copy(repostedBy = o.getJSONObject("user").optString("username")) }
+        }
         val carousel = o.optJSONArray("carousel_media")
         val media = if (carousel != null && carousel.length() > 0) {
             (0 until carousel.length()).mapNotNull { carousel.optJSONObject(it) }
         } else listOf(o)
         val images = media.mapNotNull { bestImage(it, IMAGE_TARGET_WIDTH) }
         val thumbs = media.mapNotNull { bestImage(it, THUMB_TARGET_WIDTH) }
-        val tall = media.filter { bestImage(it, IMAGE_TARGET_WIDTH) != null }.map(::isTall)
+        val shown = media.filter { bestImage(it, IMAGE_TARGET_WIDTH) != null }
+        val tall = shown.map(::isTall)
+        val videos = shown.map(::isVideo)
         return ThreadPost(
             pk = o.optString("pk"),
             code = o.optString("code"),
@@ -115,10 +125,17 @@ object ThreadsParser {
             images = images,
             thumbs = thumbs.takeIf { it.size == images.size } ?: images,
             tall = tall,
-            hasVideo = (o.optJSONArray("video_versions")?.length() ?: 0) > 0,
+            hasVideo = isVideo(o) || videos.any { it },
             avatar = o.getJSONObject("user").optString("profile_pic_url").takeIf { it.startsWith("https://") },
+            videos = videos,
+            quoted = share?.optJSONObject("quoted_post")?.takeIf { depth < 2 }?.let { post(it, depth + 1) }?.copy(quoted = null),
         )
     }
+
+    private fun isVideo(o: JSONObject): Boolean =
+        o.optInt("media_type") == MEDIA_VIDEO || (o.optJSONArray("video_versions")?.length() ?: 0) > 0
+
+    private const val MEDIA_VIDEO = 2
 
     /** 사진의 세로가 가로보다 조금이라도 긴지: 원본 크기(original_width/height), 없으면 가장 큰 후보의 크기로. */
     private fun isTall(o: JSONObject): Boolean {

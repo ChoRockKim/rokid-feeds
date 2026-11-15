@@ -55,4 +55,16 @@ class ThreadPagesTest {
         assertEquals(listOf("본문", "이어서"), pages.map { it.body })
         assertEquals(listOf(0 to 2, 1 to 2), pages.map { it.part to it.parts })
     }
+
+    @Test
+    fun `인용한 글은 그 글 뒤 쪽으로, 퍼온 사람은 상세 본문에도 남는다`() {
+        val quoted = ThreadPost("q", "Q", "other", "인용된 글", 1, images = listOf("https://x/q"))
+        val head = ThreadPost("m", "M", "me", "내 글", 2, quoted = quoted, repostedBy = "friend")
+        val detailMain = head.copy(repostedBy = null) // 글 페이지에서 받은 본문에는 퍼온 사람이 없다
+        val pages = buildPostPages(ThreadItem(head), ThreadDetail(detailMain, emptyList(), emptyList()))
+        assertEquals(listOf(false, true), pages.map { it.quote })
+        assertEquals("friend", pages[0].post.repostedBy)
+        assertEquals(listOf("https://x/q"), pages[1].photos)
+        assertEquals("other", pages[1].post.author)
+    }
 }
