@@ -3,8 +3,26 @@
 (function () {
   if (window.__rokidThreads) return;
   window.__rokidThreads = true;
+  // 로그인 버튼 뒤 서버 결과(caa_login_web)에서 이유 필드만 골라 앱으로(비밀번호·토큰은 넘기지 않는다).
+  function loginResult(text) {
+    text.split('\n').forEach(function (line) {
+      try {
+        var d = JSON.parse(line.replace(/^for \(;;\);/, '')).data.caa_login_web;
+        if (!d) return;
+        var redirect = null;
+        if (d.redirect_uri) { try { redirect = new URL(d.redirect_uri, location.href).pathname; } catch (e) { redirect = '?'; } }
+        RokidThreads.onLogin(JSON.stringify({
+          auth: !!d.ig_authenticated, code: d.error_code == null ? null : String(d.error_code),
+          msg: d.error_message ? String(d.error_message).slice(0, 80) : null,
+          captcha: !!(d.recaptcha_needed || d.is_ig_login_recaptcha), twofa: !!d.two_factor_result,
+          redirect: redirect, selector: !!d.should_show_profile_selector
+        }));
+      } catch (e) {}
+    });
+  }
   function send(text) {
     try {
+      if (typeof text === 'string' && text.indexOf('"caa_login_web"') >= 0) loginResult(text);
       // 글 데이터("taken_at") 또는 인스타 스토리 목록("latest_reel_media"·"reels_media")만.
       if (typeof text === 'string' && (text.indexOf('"taken_at"') >= 0 || text.indexOf('"latest_reel_media"') >= 0 || text.indexOf('reels_media') >= 0)) RokidThreads.onJson(location.href, text);
     } catch (e) {}

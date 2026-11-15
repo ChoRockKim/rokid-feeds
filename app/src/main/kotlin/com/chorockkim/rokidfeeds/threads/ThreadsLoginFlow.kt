@@ -113,6 +113,13 @@ class ThreadsLoginFlow(
                 onLoggedIn(username)
                 return
             }
+            // 서버가 실패 이유를 줬으면 그것을 보여 준다(화면 문구는 늘 "정보가 잘못"이라 진짜 이유를 알 수 없었다).
+            web.lastLoginResult?.reason()?.let { why ->
+                report(session, "error", why)
+                web.openLogin()
+                ui = Ui.Waiting(url, session.code, why)
+                return
+            }
             val state = web.loginState() ?: return@repeat
             when {
                 state.code != null -> {

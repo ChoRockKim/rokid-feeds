@@ -98,6 +98,13 @@ class ThreadsWeb(
             if (!site.owns(Uri.parse(pageUrl))) return
             main.post { deliver(source, pageUrl, json) }
         }
+
+        /** 로그인 버튼 뒤 서버 결과 요약([LoginResult]). 그 사이트 주소에서 온 것만. */
+        @JavascriptInterface
+        fun onLogin(summary: String) {
+            val result = LoginResult.parse(summary) ?: return
+            main.post { lastLoginResult = result }
+        }
     }
 
     fun openHome() = feed.loadUrl(site.home)
@@ -140,12 +147,28 @@ class ThreadsWeb(
      */
     fun openLogin() {
         feed.settings.userAgentString = desktopUserAgent(mobileUserAgent)
+        // UA 문자열만 데스크톱이고 Client Hints는 "Android·모바일"이면 앞뒤가 안 맞는 브라우저로 보일 수 있어, 로그인하는
+        // 동안은 Hints도 데스크톱 리눅스로 맞춘다(지원하는 WebView만).
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.USER_AGENT_METADATA)) runCatching {
+            if (savedMetadata == null) savedMetadata = WebSettingsCompat.getUserAgentMetadata(feed.settings)
+            WebSettingsCompat.setUserAgentMetadata(
+                feed.settings,
+                androidx.webkit.UserAgentMetadata.Builder(savedMetadata!!).setPlatform("Linux").setPlatformVersion("").setModel("").setMobile(false).setArchitecture("x86").setBitness(64).build(),
+            )
+        }
         feed.loadUrl(site.login)
     }
+
+    private var savedMetadata: androidx.webkit.UserAgentMetadata? = null
+
+    /** 마지막 로그인 버튼 뒤 서버 결과(없으면 아직 안 옴). [submitLogin]이 지운다. */
+    var lastLoginResult: LoginResult? = null
+        private set
 
     /** 로그인 화면을 나가면 원래(모바일) UA로. 글 데이터 모양은 모바일 UA에서 확인했다. */
     fun endLogin() {
         feed.settings.userAgentString = mobileUserAgent
+        savedMetadata?.let { m -> runCatching { WebSettingsCompat.setUserAgentMetadata(feed.settings, m) } }
     }
 
     /** 로그인 폼에 넣고 누른다. 폼이 없으면 false. */
@@ -158,6 +181,7 @@ class ThreadsWeb(
      */
     suspend fun submitLogin(username: String, password: String): SubmitResult {
         var page = ""
+        lastLoginResult = null
         repeat(LOGIN_TRIES) { attempt ->
             val raw = eval("window.__rokidLogin ? window.__rokidLogin(${JSONObject.quote(username)}, ${JSONObject.quote(password)}) : JSON.stringify({ok:false,page:'스크립트 없음'})")
             val o = runCatching { JSONObject(unquote(raw)) }.getOrNull()
