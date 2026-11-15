@@ -9,6 +9,8 @@
          WRITE_SECURE_SETTINGS는 선택이며 adb로만 줄 수 있다. -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <!-- Wi-Fi 검색(startScan)에 필요. 앱이 묻지 않는다(시스템 창이 밝아 가린다): adb로 한 번 준다. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission
         android:name="android.permission.WRITE_SECURE_SETTINGS"
         tools:ignore="ProtectedPermissions" />

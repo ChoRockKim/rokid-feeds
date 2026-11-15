@@ -36,7 +36,7 @@ Rokid 안경용 읽기 앱입니다. 메인 메뉴에서 **뉴스**와 **Threads
 |---|---|---|---|---|
 | 앞/뒤로 쓸기 · 링 앞/뒤 | 다음/이전 줄 (순환) | 다음/이전 글 (**양끝에서 순환**) | 다음/이전 쪽 (**끝에서 멈춤**) | 다음/이전 쪽, 댓글 쪽에서는 댓글을 하나씩 고름 |
 | 탭 · 링 탭 | 고르기 | 열기 (오류 화면에서는 다시 시도) | 다음 쪽 | 다음 쪽, 고른 댓글이면 **그 댓글을 열어 답글 보기** |
-| 뒤로 · 링 두 번 탭 | 앱 종료 | 메인 메뉴 | 목록 (선택 위치 유지) | 이전 글(댓글을 열기 전) → 목록 |
+| 뒤로 · 링 두 번 탭 | 앱 종료 | **앱 종료** (메뉴를 거치지 않음) | 목록 (선택 위치 유지) | 이전 글(댓글을 열기 전) → 목록 |
 
 - **안경 터치패드:** rokid-lens·rokid-youtube와 같은 키 매핑(`input/GlassesInput.kt`, RokidPipe에서 실기 확인된 것). 쓸기는 DPAD 좌우·183/184, 탭은 ENTER·202, 세로 쓸기(DPAD 위/아래)도 이전/다음. 한 번 쓸기에 두 번 들어오는 이벤트는 240ms 디바운스로 거릅니다.
 - **R08 링 ([R08 Access Bridge](https://github.com/Anezium/R08-Access-Bridge)):** 띠 위에 링 전용 노드(`input/RingTarget.kt`) 하나만 노출해서, 브리지가 보내는 스크롤 앞/뒤와 클릭을 위 동작으로 바꿉니다. 브리지가 꺼져 있을 때 들어오는 링 미디어 키도 같은 동작입니다.
@@ -92,6 +92,12 @@ RELEASE_KEYSTORE=... RELEASE_KEYSTORE_PASS=... OTA_UPLOAD_TOKEN=... scripts/rele
 adb install -r -i com.chorockkim.rokidfeeds rokid-feeds-0.1.0.apk
 adb shell appops set com.chorockkim.rokidfeeds REQUEST_INSTALL_PACKAGES allow
 adb shell appops set com.chorockkim.rokidfeeds SYSTEM_ALERT_WINDOW allow
+```
+
+Wi-Fi를 빨리 잡게 하려면 위치 권한을 한 번 줍니다(Wi-Fi 검색에 필요, 앱은 권한 창을 띄우지 않습니다). 안 줘도 동작하지만 시스템 검색 간격(점점 길어짐)을 기다려야 합니다.
+
+```bash
+adb shell pm grant com.chorockkim.rokidfeeds android.permission.ACCESS_FINE_LOCATION
 ```
 
 OTA 서버(rokid-conversate server-v2)의 `OTA_PUBLIC_APPS`에 `rokid-feeds`가 있어야 합니다. Wi-Fi 자동 켜기에는 rokid-conversate의 `wifihelper` APK가 한 번 설치돼 있어야 합니다.

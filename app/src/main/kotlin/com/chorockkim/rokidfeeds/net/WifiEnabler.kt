@@ -59,15 +59,26 @@ class WifiEnabler(private val context: Context, private val onStatus: (Status) -
             var last: Status? = null
             var offSince = 0L
             var lastTry = 0L
+            var tries = 0
+            var lastScan = 0L
             while (running) {
                 val now = System.currentTimeMillis()
                 val status = when {
-                    isConnected -> Status.CONNECTED.also { offSince = 0L }
-                    isOn -> Status.WAITING_FOR_NETWORK.also { offSince = 0L }
+                    isConnected -> Status.CONNECTED.also { offSince = 0L; tries = 0; lastScan = 0L }
+                    isOn -> {
+                        offSince = 0L; tries = 0
+                        // 켜졌는데 아직 안 붙었다: 시스템은 안 붙은 동안 검색 간격을 점점 늘려서(20초→…→160초) 핫스팟이
+                        // 뒤늦게 켜지면 한참 걸린다. 직접 검색을 걸어 저장된 핫스팟을 빨리 찾게 한다(위치 권한이 있을 때만 된다).
+                        if (now - lastScan >= SCAN_MS) { lastScan = now; scan() }
+                        Status.WAITING_FOR_NETWORK
+                    }
                     else -> {
                         if (offSince == 0L) offSince = now
-                        if (now - lastTry >= RETRY_MS) {
+                        // 처음 몇 번은 빨리(도우미가 한 번에 안 먹는 경우가 많다), 그 뒤는 [RETRY_MS]마다.
+                        val wait = FAST_RETRIES_MS.getOrElse(tries) { RETRY_MS }
+                        if (now - lastTry >= wait) {
                             lastTry = now
+                            tries++
                             tryEnable()
                         }
                         when {
@@ -88,6 +99,12 @@ class WifiEnabler(private val context: Context, private val onStatus: (Status) -
 
     fun stop() {
         running = false
+    }
+
+    /** 위치 권한이 없으면(안드로이드 10+) 아무것도 안 한다. 앱이 2분에 4번까지만 걸 수 있어 [SCAN_MS]마다. */
+    @Suppress("DEPRECATION")
+    private fun scan() {
+        runCatching { wifi.startScan() }
     }
 
     @Suppress("DEPRECATION")
@@ -114,6 +131,10 @@ class WifiEnabler(private val context: Context, private val onStatus: (Status) -
         const val CONNECTED_POLL_MS = 5_000L
         /** The helper activity briefly pauses this app, so not more often than this. */
         const val RETRY_MS = 10_000L
+        /** 꺼져 있을 때 처음 몇 번의 간격: 바로, 2초 뒤, 5초 뒤. */
+        val FAST_RETRIES_MS = longArrayOf(0L, 2_000L, 5_000L)
+        /** 켜졌는데 안 붙었을 때 직접 거는 검색 간격(포그라운드 앱 한도 2분 4번 안). */
+        const val SCAN_MS = 30_000L
         const val GIVE_UP_MS = 8_000L
 
         /** Text for the pill above the band; null = nothing to show. */

@@ -67,7 +67,7 @@ fun NewsApp(keys: Flow<NavKey>, online: Boolean, onBack: () -> Unit, api: NewsAp
         }
     }
 
-    // 목록·상세는 상태머신이(목록에서 뒤로 = 메뉴), 그 밖의 화면(불러오는 중·오류)은 뒤로 = 메뉴, 탭 = 다시 시도.
+    // 목록·상세는 상태머신이(목록에서 뒤로 = 앱 종료), 그 밖의 화면(불러오는 중·오류)은 뒤로 = 앱 종료, 탭 = 다시 시도.
     val onKey by rememberUpdatedState { key: NavKey ->
         when {
             articles.isNotEmpty() -> {

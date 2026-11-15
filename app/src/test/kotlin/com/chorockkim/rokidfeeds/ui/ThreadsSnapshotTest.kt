@@ -144,6 +144,9 @@ class ThreadsSnapshotTest {
     }
 
     @Test
+    fun threads_login_waking() = shot { ThreadsLoginScreen(com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Starting(waking = true)) }
+
+    @Test
     fun threads_login_needCode() = shot {
         ThreadsLoginScreen(com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.NeedCode("server-v2-production-8f97.up.railway.app/login", "482913", "보안 코드"))
     }

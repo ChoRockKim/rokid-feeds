@@ -191,8 +191,13 @@ class ThreadsSession(
         }
         detailTimeout?.cancel()
         detailTimeout = scope.launch {
-            delay(LOAD_TIMEOUT_MS)
-            if (target == item) targetLoading = false
+            // 새로 여는 페이지(처음 받기)는 threads.com 화면 코드를 다 받아야 해서 오래 걸린다. 페이지 안 이동은 늦으면
+            // [SPA_FALLBACK_MS] 뒤 새로 열기로 바뀌므로 그만큼 더 기다린다.
+            delay(FULL_LOAD_TIMEOUT_MS + if (inPage) SPA_FALLBACK_MS else 0L)
+            // 그동안 데이터가 왔으면 실패가 아니다. 예전(~0.2.23)에는 이 확인이 없어 댓글을 잘 받고도 15초 뒤 "댓글 불러오기
+            // 실패"를 띄우고 처음부터 다시 받았고, 두 번 뒤에는 실패로 남았다(코드에서 찾음, 사용자 증상 "처음에 자꾸 실패").
+            if (target != item || !targetLoading) return@launch
+            targetLoading = false
             postDone(0)
             if (openItem == item) {
                 detailLoading = false
@@ -372,6 +377,7 @@ class ThreadsSession(
                     details[code] = Cached(merged, System.currentTimeMillis())
                     targetLoading = false
                     fallback?.cancel()
+                    detailTimeout?.cancel()
                     cache?.let { c -> launch(Dispatchers.IO) { c.saveDetail(code, merged) } }
                     if (openItem?.head?.code == code) {
                         detail = merged
@@ -402,6 +408,8 @@ class ThreadsSession(
 
     private companion object {
         const val LOAD_TIMEOUT_MS = 15_000L
+        /** 글 상세를 못 받았다고 볼 때까지. 안경·핫스팟에서 threads.com을 처음 열면 화면 코드 받기만 10초를 넘길 수 있다(미확인). */
+        const val FULL_LOAD_TIMEOUT_MS = 25_000L
         const val MORE_INTERVAL_MS = 3_000L
         /** 데이터가 온 뒤 이만큼 더 켜 두었다가 끈다(응답이 여러 개로 나뉘어 온다). */
         const val IDLE_AFTER_DATA_MS = 2_000L

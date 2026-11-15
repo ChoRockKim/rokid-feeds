@@ -25,7 +25,7 @@ private data class Opened(val item: ThreadItem, val state: DetailState = DetailS
 
 /**
  * Threads 화면.
- * - 목록: [Navigator] 규칙(이전/다음 순환, 탭 = 열기, 뒤로 = 메뉴). 끝 세 줄 안으로 오면 다음 글을 더 받는다.
+ * - 목록: [Navigator] 규칙(이전/다음 순환, 탭 = 열기, 뒤로 = 앱 종료). 끝 세 줄 안으로 오면 다음 글을 더 받는다.
  * - 글: [ThreadDetailNav] — 본문(아래 사진) → 탭하면 사진 크게(위아래로 다른 사진, 뒤로 글) → 아래로 넘기면 댓글 목록 →
  *   댓글 탭 = 그 댓글을 열기(답글·사진), 댓글에서 뒤로 = 글, 글에서 뒤로 = 이전 글 → 목록.
  */

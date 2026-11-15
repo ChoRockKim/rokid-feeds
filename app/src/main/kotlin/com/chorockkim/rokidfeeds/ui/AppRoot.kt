@@ -54,9 +54,9 @@ fun AppRoot(
             LaunchedEffect(keys) { keys.collect { onKey(it) } }
             SettingsScreen(app.settingsSelected, threadsLoggedIn, app.confirmLogout, com.chorockkim.rokidfeeds.BuildConfig.VERSION_NAME)
         }
-        Screen.News -> NewsApp(keys = keys, online = online, onBack = toMenu, api = api)
-        Screen.Threads -> if (threads != null) ThreadsApp(session = threads, keys = keys, onBack = toMenu, online = online) else {
-            val onKey by rememberUpdatedState { key: NavKey -> if (key == NavKey.Back) toMenu() }
+        Screen.News -> NewsApp(keys = keys, online = online, onBack = onExit, api = api)
+        Screen.Threads -> if (threads != null) ThreadsApp(session = threads, keys = keys, onBack = onExit, online = online) else {
+            val onKey by rememberUpdatedState { key: NavKey -> if (key == NavKey.Back) onExit() }
             LaunchedEffect(keys) { keys.collect { onKey(it) } }
             LoadingView()
         }

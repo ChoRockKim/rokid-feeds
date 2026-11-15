@@ -31,7 +31,7 @@ data class Reduction2(val state: AppState, val exit: Boolean = false, val logout
  * - 메뉴: 이전/다음 = 줄 이동(양끝 순환), 선택 = 그 화면, 뒤로 = 종료.
  * - 설정: Threads 계정 줄 — 로그인 안 했으면 선택 = 로그인 화면, 했으면 선택 한 번 = "한 번 더 탭하면 로그아웃",
  *   한 번 더 = 로그아웃(쓸기·뒤로는 확인 취소). 뒤로 = 메뉴.
- * - 뉴스·Threads는 자기 목록에서 뒤로 하면 메뉴로([backToMenu]), 로그인 화면에서 뒤로 하면 설정으로([backFromLogin]).
+ * - 뉴스·Threads는 자기 목록에서 뒤로 하면 앱을 끝낸다(AppRoot, 두 번 뒤로 하지 않게), 로그인 화면에서 뒤로 하면 설정으로([backFromLogin]).
  */
 object AppNav {
     fun reduceMenu(state: AppState, key: NavKey): Reduction2 {

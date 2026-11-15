@@ -25,7 +25,7 @@ Rokid 안경 읽기 앱. 메인 메뉴에서 **뉴스**(연합뉴스·동아일�
 - 터치패드 키 → `input/GlassesInput.kt`(rokid-lens 그대로): 쓸기 = DPAD 좌우·183/184, 탭 = ENTER·202, 세로 쓸기 = DPAD 위/아래, 링 미디어 키, 방향 키 240ms 디바운스·`repeatCount > 0` 무시. Back은 시스템 Back으로.
 - R08 링 → `input/RingTarget.kt`: 띠 위 투명 View 하나만 접근성 노드로 노출하고(Compose 쪽은 `NO_HIDE_DESCENDANTS`) SCROLL_FORWARD/BACKWARD/CLICK을 받는다. 행마다 포커스를 두지 않는다.
 - 동작 → `NavKey` 매핑은 `input/NavKeys.kt` 한 곳, 규칙은 `nav/Navigator.kt`(Android 없는 순수 상태머신)에만 둔다. 규칙을 바꾸면 `NavigatorTest`를 먼저 고친다. 화면(`FeedScreen`, `DetailScreen`)은 상태를 보여 주기만 한다.
-- 메인 메뉴는 `nav/AppNav.kt`(순수). 목록은 이전/다음이 양끝에서 순환, 상세는 쪽 이동이며 끝에서 멈춘다. 탭 = 열기/다음 쪽, 뒤로 = 목록 → 메뉴 → 종료.
+- 메인 메뉴는 `nav/AppNav.kt`(순수). 목록은 이전/다음이 양끝에서 순환, 상세는 쪽 이동이며 끝에서 멈춘다. 탭 = 열기/다음 쪽, 뒤로 = 상세 → 목록 → 앱 종료(뉴스·Threads 목록에서 뒤로는 메뉴를 거치지 않고 바로 종료, 사용자 요청 2026-11-15). 메뉴로는 앱을 다시 켜면 온다.
 - Threads 글 안 이동은 `nav/ThreadDetailNav.kt`(순수, 아래 Threads 절).
 
 ## Threads

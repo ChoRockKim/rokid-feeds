@@ -333,7 +333,11 @@ fun ThreadsLoginScreen(ui: com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         BasicText("Threads 로그인 · 폰에서", style = Glass.Heading)
         when (ui) {
-            null, is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Starting -> BasicText("준비 중…", style = Glass.Body)
+            null -> BasicText("준비 중…", style = Glass.Body)
+            is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Starting -> if (ui.waking) {
+                BasicText("로그인 서버 깨우는 중…", style = Glass.Body)
+                BasicText("쓰지 않으면 서버가 잠들어 처음 한 번은 몇 초~30초 걸립니다", style = Glass.BodySmall, maxLines = 2)
+            } else BasicText("준비 중…", style = Glass.Body)
             is com.chorockkim.rokidfeeds.threads.ThreadsLoginFlow.Ui.Waiting -> {
                 CodeBlock(ui.url, ui.code)
                 BasicText(ui.error?.let { "다시 보내 주세요 · $it" } ?: "폰에서 위 주소를 열고 코드와 아이디·비밀번호를 넣으세요", style = Glass.BodySmall, maxLines = 2)

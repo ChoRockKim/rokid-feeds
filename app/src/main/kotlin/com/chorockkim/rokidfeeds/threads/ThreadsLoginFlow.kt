@@ -1,5 +1,6 @@
 package com.chorockkim.rokidfeeds.threads
 
+import com.chorockkim.rokidfeeds.util.NetErrors
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -22,7 +23,8 @@ class ThreadsLoginFlow(
     private val onLoggedIn: () -> Unit,
 ) {
     sealed interface Ui {
-        data object Starting : Ui
+        /** 로그인 서버에 코드를 받는 중. [waking]이면 늦어서 서버가 잠에서 깨는 중으로 본다. */
+        data class Starting(val waking: Boolean = false) : Ui
         /** 폰을 기다리는 중. [error]는 직전 시도가 실패한 이유(폰에서 다시 보내면 된다). */
         data class Waiting(val url: String, val code: String, val error: String? = null) : Ui
         data class LoggingIn(val url: String, val code: String) : Ui
@@ -31,7 +33,7 @@ class ThreadsLoginFlow(
         data class Failed(val message: String) : Ui
     }
 
-    var ui by mutableStateOf<Ui>(Ui.Starting)
+    var ui by mutableStateOf<Ui>(Ui.Starting())
         private set
 
     private var job: Job? = null
@@ -47,12 +49,22 @@ class ThreadsLoginFlow(
     }
 
     private suspend fun run() {
-        ui = Ui.Starting
+        ui = Ui.Starting()
         web.openLogin()
-        val session = runCatching { relay.newSession() }.getOrElse {
-            ui = Ui.Failed("로그인 서버에 연결하지 못했습니다 (${it.message ?: it.javaClass.simpleName})")
-            return
-        }
+        // 서버(Railway)가 잠들어 있으면 첫 요청이 늦다: 늦으면 "깨우는 중"을 보여 주고, 실패해도 한 번 더 해 본 뒤에만 실패로.
+        val hint = scope.launch { delay(NetErrors.WAKE_HINT_MS); if (ui is Ui.Starting) ui = Ui.Starting(waking = true) }
+        val session = runCatching { relay.newSession() }
+            .recoverCatching { e ->
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                ui = Ui.Starting(waking = true); delay(RETRY_AFTER_MS); relay.newSession()
+            }
+            .getOrElse {
+                hint.cancel()
+                if (it is kotlinx.coroutines.CancellationException) throw it
+                ui = Ui.Failed("로그인 서버에 연결하지 못했습니다 · ${NetErrors.reason(it)}")
+                return
+            }
+        hint.cancel()
         val url = relay.phoneUrl
         ui = Ui.Waiting(url, session.code)
         while (coroutineContext.isActive) {
@@ -120,6 +132,8 @@ class ThreadsLoginFlow(
 
     private companion object {
         const val POLL_MS = 2_000L
+        /** 첫 요청이 실패하면(서버가 깨는 중일 수 있다) 이만큼 뒤 한 번 더. */
+        const val RETRY_AFTER_MS = 3_000L
         const val WATCH_MS = 1_500L
         const val WATCH_STEPS = 16
     }

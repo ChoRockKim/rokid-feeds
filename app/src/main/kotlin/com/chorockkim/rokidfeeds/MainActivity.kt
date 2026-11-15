@@ -42,6 +42,7 @@ import com.chorockkim.rokidfeeds.threads.ThreadsWeb
 import com.chorockkim.rokidfeeds.ui.AppRoot
 import com.chorockkim.rokidfeeds.ui.StatusBar
 import com.chorockkim.rokidfeeds.update.InstallResultReceiver
+import com.chorockkim.rokidfeeds.util.NetErrors
 import com.chorockkim.rokidfeeds.update.Updater
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -342,31 +343,30 @@ class MainActivity : ComponentActivity() {
      */
     private suspend fun checkWithRetry(updater: Updater): Result<Updater.Check> {
         var last: Result<Updater.Check> = Result.failure(IllegalStateException())
-        for (wait in UPDATE_RETRY_DELAYS_MS) {
+        val total = UPDATE_RETRY_DELAYS_MS.size
+        for ((i, wait) in UPDATE_RETRY_DELAYS_MS.withIndex()) {
             if (wait > 0) delay(wait)
             if (!online) continue
+            // 서버가 잠들어 있으면 첫 응답이 늦다: 2초 넘게 걸리면 죽은 게 아니라 깨우는 중이라고 보여 준다.
+            val hint = lifecycleScope.launch {
+                delay(NetErrors.WAKE_HINT_MS)
+                updateText = "업데이트 서버 깨우는 중…" + if (i > 0) " (${i + 1}/$total)" else ""
+            }
             last = runCatching { updater.check() }
-            if (last.isSuccess) return last
+            hint.cancel()
+            if (last.isSuccess) { if (updateText?.startsWith("업데이트 서버 깨우는 중") == true) updateText = null; return last }
+            if (i < total - 1) updateText = "업데이트 서버 깨우는 중… (${i + 2}/$total)"
         }
         return last
-    }
-
-    /** 띠 위에 짧게: 예외 메시지 원문(영어, 호스트 이름 포함)은 길어서 종류만. */
-    private fun failReason(e: Throwable?): String = when (e) {
-        is java.net.UnknownHostException -> "서버 주소를 못 찾음"
-        is java.net.SocketTimeoutException -> "서버 응답 없음"
-        is java.net.ConnectException -> "서버에 연결 못 함"
-        is javax.net.ssl.SSLException -> "보안 연결 실패"
-        is Updater.UpdateException -> e.message?.removePrefix("업데이트 확인 실패")?.trim()?.removeSurrounding("(", ")")?.ifBlank { null } ?: "서버 오류"
-        else -> e?.javaClass?.simpleName ?: "알 수 없음"
     }
 
     private suspend fun runUpdate(updater: Updater) {
         val checked = checkWithRetry(updater)
         if (checked.isFailure) {
+            if (!online && updateText?.startsWith("업데이트 서버 깨우는 중") == true) updateText = null
             // 오프라인이면 조용히 기다렸다가 연결되면 다시. 온라인인데 다 실패하면 이유를 띠 위에 보여 주고 나중에 다시.
             if (online) {
-                updateText = "업데이트 확인 실패 · ${failReason(checked.exceptionOrNull())} · 나중에 다시"
+                updateText = "업데이트 확인 실패 · ${NetErrors.reason(checked.exceptionOrNull())} · 5분 뒤 다시"
                 lifecycleScope.launch {
                     delay(UPDATE_FAIL_NOTICE_MS); if (updateText?.startsWith("업데이트 확인 실패") == true) updateText = null
                     delay(UPDATE_RETRY_LONG_MS - UPDATE_FAIL_NOTICE_MS); checkForUpdate()
