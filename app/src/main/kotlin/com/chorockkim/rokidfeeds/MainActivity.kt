@@ -262,6 +262,7 @@ class MainActivity : ComponentActivity() {
         if (next == Screen.ThreadsLogin) {
             val flow = loginFlow ?: ThreadsLoginFlow(threadsWeb!!, LoginRelay(BuildConfig.RELAY_URL), lifecycleScope) { name ->
                 accounts.setName(accounts.active, name)
+                accounts.saveCookies(accounts.active)
                 refreshAccounts()
                 threadsLoggedIn = true
             }.also { loginFlow = it }
@@ -280,7 +281,7 @@ class MainActivity : ComponentActivity() {
         val a = accounts.active
         val session = threadsSession
         if (session != null) session.logout() else accounts.cookies(a).removeAllCookies(null)
-        accounts.setName(a, null)
+        accounts.forget(a)
         accountRows = accountRows.mapIndexed { i, r -> if (i == a) r.copy(loggedIn = false, name = null) else r }
         threadsLoggedIn = false
     }
@@ -289,7 +290,7 @@ class MainActivity : ComponentActivity() {
     private fun refreshAccounts() {
         val active = accounts.active
         accountRows = (0 until ThreadsAccounts.COUNT).map { i ->
-            val available = i == 0 || accounts.supported
+            val available = true // 프로필이 없으면 쿠키 바꿔 끼우기로
             AccountRow(
                 loggedIn = available && accounts.isLoggedIn(i),
                 active = i == active,
@@ -305,7 +306,7 @@ class MainActivity : ComponentActivity() {
      * 프로필이 따로라 다시 로그인하지 않는다.
      */
     private fun switchAccount(i: Int) {
-        if (i == accounts.active || !(i == 0 || accounts.supported)) return
+        if (i == accounts.active) return
         loginFlow?.stop()
         loginFlow = null
         threadsWeb?.let { w ->
@@ -315,7 +316,7 @@ class MainActivity : ComponentActivity() {
         }
         threadsWeb = null
         threadsSession = null
-        accounts.active = i
+        accounts.switchTo(i) // 프로필이 없으면 여기서 쿠키를 바꿔 끼운다(WebView를 버린 뒤)
         refreshAccounts()
     }
 

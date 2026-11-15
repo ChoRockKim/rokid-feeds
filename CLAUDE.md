@@ -37,7 +37,7 @@ Rokid 안경 읽기 앱. 메인 메뉴에서 **뉴스**(연합뉴스·동아일�
 - 글 안 이동은 `nav/ThreadDetailNav`(순수): 글(본문 아래 사진) → 탭 사진 크게 → 아래로 댓글 목록 → 댓글 탭 = 그 댓글 열기, 댓글에서 뒤로 = 글.
 - 퍼온 글(리포스트)은 목록 글이 퍼온 사람 것이고 원글이 `share_info.reposted_post`에 있어 원글을 보여 주고 "아무개 님이 리포스트"를 붙인다. 인용 글은 `share_info.quoted_post`(목록은 테두리 상자, 상세는 그 글 다음 쪽). 동영상(`media_type` 2·`video_versions`)은 미리보기 사진에 재생 표시, 사진 화면에서 탭하면 `ui/ThreadVideo.kt`(MediaPlayer + TextureView, 녹색 단색 색 행렬)로 재생한다(탭 일시정지, 쓸기 10초, 뒤로 사진). 모두 2026-11-15 로그인 안 한 Chromium 응답으로 모양 확인, 실기 미확인.
 - 화면은 Threads 앱 모양(`ui/ThreadsLook.kt`): 아바타·굵은 이름·오른쪽 시각·선으로 그린 아이콘 줄·구분선. 사진·아바타는 녹색 단색 필터, 이모지는 뺀다(`util/Emoji.kt`).
-- 계정은 두 개(`threads/ThreadsAccounts`): 계정마다 WebView 프로필(`WebViewCompat.setProfile`, 쿠키·저장소 분리)과 저장본 폴더를 따로 둔다. 계정 1 = 기본 프로필. 설정에서 로그인 안 한 칸 = 폰 로그인, 다른 계정 = 전환(WebView를 버리고 그 프로필로 다시 만든다), 지금 계정 = 두 번 탭 로그아웃. 아이디만 표시용으로 저장하고 비밀번호는 저장하지 않는다. 안경 WebView가 `MULTI_PROFILE`을 지원해야 계정 2를 쓸 수 있다(실기 미확인).
+- 계정은 두 개(`threads/ThreadsAccounts`): 계정마다 WebView 프로필(`WebViewCompat.setProfile`, 쿠키·저장소 분리)과 저장본 폴더를 따로 둔다. 계정 1 = 기본 프로필. 설정에서 로그인 안 한 칸 = 폰 로그인, 다른 계정 = 전환(WebView를 버리고 그 프로필로 다시 만든다), 지금 계정 = 두 번 탭 로그아웃. 아이디만 표시용으로 저장하고 비밀번호는 저장하지 않는다. 사용자 안경 WebView는 `MULTI_PROFILE`을 지원하지 않아(실기 2026-11-15) **쿠키 바꿔 끼우기**로 동작한다(`threads/CookieSnapshot`): 바꿀 때 지금 계정의 threads·instagram 쿠키를 앱 내부 저장소에 보관 → WebView 쿠키·웹 저장소를 지움 → 대상 계정 저장본을 `.threads.com`·Path=/·Secure·1년으로 다시 넣는다(만료 등 속성은 잃음, 실기 미확인).
 - 클라우드에서 확인한 것은 로그인하지 않은 Chromium뿐이다. 로그인 상태·안드로이드 WebView는 실기 미확인.
 
 ## 네트워크
